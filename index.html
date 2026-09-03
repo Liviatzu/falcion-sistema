@@ -2873,8 +2873,11 @@ window.openSubtaskModal = function(taskId) {
   openModal('modal-subtask');
 };
 
-window.editSubtask = function(taskId, subId) {
-  const t = allTasks.find(x=>x.id===taskId);
+window.editSubtask = async function(taskId, subId) {
+  let t = allTasks.find(x=>x.id===taskId);
+  if (!t) {
+    try { const d = await db.collection('tasks').doc(taskId).get(); if(d.exists) t={id:d.id,...d.data()}; } catch(e){}
+  }
   if (!t) return;
   const s = (t.subtasks||[]).find(x=>x.id===subId);
   if (!s) return;

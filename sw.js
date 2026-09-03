@@ -1,4 +1,4 @@
-const CACHE = 'falcion-v48';
+const CACHE = 'falcion-v49';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
