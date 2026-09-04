@@ -456,7 +456,7 @@ tr:hover td{background:#F8FAFC}
               <div class="cd-hours-lbl">SALDO ATUAL</div>
             </div>
             <div class="cd-hours-val" id="detail-saldo">—</div>
-            <button onclick="virarMes()" title="O saldo atual vira o inicial do próximo mês" style="margin-left:0.5rem;background:var(--gold);border:none;border-radius:8px;padding:0.35rem 0.6rem;font-size:0.72rem;font-weight:700;color:var(--navy);cursor:pointer;white-space:nowrap">🔄 Virar Mês</button>
+            <button onclick="virarMes()" title="O saldo atual vira o inicial do próximo mês" style="margin-left:0.5rem;background:var(--gold);border:none;border-radius:8px;padding:0.35rem 0.6rem;font-size:0.72rem;font-weight:700;color:var(--navy);cursor:pointer;white-space:nowrap">🔄 F5</button>
           </div>
           <div class="cd-hours-box" id="detail-tasks-box" style="display:none;flex-direction:column;gap:0.1rem;min-width:120px">
             <div style="font-size:0.62rem;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px">📋 Horas em Tarefas</div>
@@ -2963,7 +2963,7 @@ function renderTaskList(list, containerId) {
     </select>`;
 
     // Subtarefas
-    const subs = Array.isArray(t.subtasks) ? t.subtasks : [];
+    const subs = (Array.isArray(t.subtasks) ? [...t.subtasks] : []).sort((a,b)=>(a.due||'').localeCompare(b.due||''));
     const subsDone = subs.filter(s=>s.done).length;
     const subsPct = subs.length ? Math.round(subsDone/subs.length*100) : 0;
     const subsBarColor = subsPct===100?'#27AE60':subsPct>=50?'#F39C12':'#2980B9';
