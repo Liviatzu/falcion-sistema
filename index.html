@@ -568,8 +568,15 @@ tr:hover td{background:#F8FAFC}
 
       <!-- ARQUIVOS TAB -->
       <div class="tab-content" id="tab-arquivos">
+        <!-- Link pasta Drive -->
+        <div style="background:#e8f0fe;border-radius:10px;padding:0.8rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap">
+          <span style="font-size:0.85rem;font-weight:600;color:#1A73E8;white-space:nowrap">📁 Pasta no Drive:</span>
+          <input type="url" id="drive-url-input" placeholder="Cole aqui o link da pasta do Google Drive..." style="flex:1;min-width:180px;padding:0.4rem 0.7rem;border:1.5px solid #a8c4f0;border-radius:8px;font-size:0.83rem;font-family:inherit">
+          <button onclick="saveDriveUrl()" class="btn btn-sm" style="background:#1A73E8;color:#fff;border:none;white-space:nowrap">Salvar</button>
+          <a id="drive-open-btn" href="#" target="_blank" style="display:none;font-size:0.83rem;font-weight:700;color:#1A73E8;text-decoration:none">🔗 Abrir pasta</a>
+        </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-          <span style="font-size:0.78rem;color:var(--gray)">Documentos e arquivos anexados a este cliente</span>
+          <span style="font-size:0.78rem;color:var(--gray)">Documentos anexados a este cliente</span>
           <label class="btn btn-primary btn-sm" style="cursor:pointer">
             📎 Anexar Arquivo
             <input type="file" id="arquivo-input" style="display:none" onchange="uploadArquivo(this)">
@@ -1959,7 +1966,10 @@ function renderClients(list) {
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. Contratuais</span>
         <input type="text" value="${c.monthly_quota_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','monthly_quota_hours',this.value)" placeholder="0:00">
       </div>
-      <div style="margin-top:0.7rem;text-align:right"><span onclick="event.stopPropagation();openClientDetail('${c.id}')" style="font-size:0.75rem;color:var(--gold);font-weight:600;cursor:pointer;letter-spacing:0.3px">Ver cliente →</span></div>
+      <div style="margin-top:0.7rem;display:flex;justify-content:space-between;align-items:center">
+        ${c.drive_url ? `<a href="${c.drive_url}" target="_blank" onclick="event.stopPropagation()" style="font-size:0.75rem;color:#1A73E8;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:0.3rem">📁 Drive</a>` : `<span></span>`}
+        <span onclick="event.stopPropagation();openClientDetail('${c.id}')" style="font-size:0.75rem;color:var(--gold);font-weight:600;cursor:pointer;letter-spacing:0.3px">Ver cliente →</span>
+      </div>
     </div>`;
   }).join('');
 }
@@ -2344,7 +2354,24 @@ async function deleteOcorrencia(id) {
 // ============================================================
 // ARQUIVOS ANEXOS
 // ============================================================
+async function saveDriveUrl() {
+  const url = document.getElementById('drive-url-input').value.trim();
+  await db.collection('clients').doc(currentClientId).update({ drive_url: url });
+  if (currentClientData) currentClientData.drive_url = url;
+  const btn = document.getElementById('drive-open-btn');
+  if (url) { btn.href = url; btn.style.display='inline'; }
+  else btn.style.display='none';
+  toast('Link do Drive salvo!');
+  loadClients();
+}
+
 async function loadArquivos(clientId) {
+  // carregar link drive
+  const inp = document.getElementById('drive-url-input');
+  const btn = document.getElementById('drive-open-btn');
+  const driveUrl = currentClientData?.drive_url || '';
+  if (inp) inp.value = driveUrl;
+  if (btn) { if(driveUrl){btn.href=driveUrl;btn.style.display='inline';}else btn.style.display='none'; }
   const snap = await db.collection('arquivos').where('client_id','==',clientId).get();
   const list = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.created_at?.seconds||0)-(a.created_at?.seconds||0));
   const container = document.getElementById('arquivos-list');
