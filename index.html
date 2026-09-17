@@ -475,6 +475,7 @@ tr:hover td{background:#F8FAFC}
         <div class="detail-tab" onclick="showTab('ocorrencias')">Ocorrências</div>
         <div class="detail-tab" onclick="showTab('cronograma')">📅 Cronograma</div>
         <div class="detail-tab" onclick="showTab('postagens')">📸 Postagens</div>
+        <div class="detail-tab" onclick="showTab('arquivos')">📎 Arquivos</div>
         <!-- abas customizadas injetadas aqui -->
         <div id="custom-tabs-btns"></div>
         <button id="btn-add-custom-tab" onclick="openAddTabModal()" style="display:none;background:none;border:1.5px dashed var(--gray);color:var(--gray);border-radius:8px;padding:0.3rem 0.7rem;font-size:0.78rem;cursor:pointer;white-space:nowrap;margin-left:0.3rem">＋ Aba</button>
@@ -565,6 +566,18 @@ tr:hover td{background:#F8FAFC}
       <!-- ABAS CUSTOMIZADAS (injetadas dinamicamente) -->
       <div id="custom-tabs-contents"></div>
 
+      <!-- ARQUIVOS TAB -->
+      <div class="tab-content" id="tab-arquivos">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <span style="font-size:0.78rem;color:var(--gray)">Documentos e arquivos anexados a este cliente</span>
+          <label class="btn btn-primary btn-sm" style="cursor:pointer">
+            📎 Anexar Arquivo
+            <input type="file" id="arquivo-input" style="display:none" onchange="uploadArquivo(this)">
+          </label>
+        </div>
+        <div id="arquivos-list"></div>
+      </div>
+
       <!-- CRONOGRAMA TAB -->
       <div class="tab-content" id="tab-cronograma">
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
@@ -595,6 +608,9 @@ tr:hover td{background:#F8FAFC}
         </select>
         <select id="task-filter-consultor" onchange="filterTasks()" style="padding:0.6rem 1rem;border-radius:8px;border:1.5px solid var(--gray-light);font-family:inherit;font-size:0.88rem">
           <option value="">Todos consultores</option>
+        </select>
+        <select id="task-filter-empresa" onchange="filterTasks()" style="padding:0.6rem 1rem;border-radius:8px;border:1.5px solid var(--gray-light);font-family:inherit;font-size:0.88rem">
+          <option value="">Todas as empresas</option>
         </select>
       </div>
       <div id="all-tasks-list"></div>
@@ -1051,7 +1067,12 @@ tr:hover td{background:#F8FAFC}
     <div class="form-group"><label>Título *</label><input type="text" id="oc-titulo" placeholder="Descreva brevemente a ocorrência"></div>
     <div class="form-row">
       <div class="form-group"><label>Data *</label><input type="date" id="oc-date"></div>
-      <div class="form-group"><label>Severidade</label>
+      <div class="form-group"><label>Consultor</label>
+        <select id="oc-consultor" style="width:100%"><option value="">— selecione —</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>Severidade</label>
         <select id="oc-sev">
           <option value="baixa">🟢 Baixa</option>
           <option value="media" selected>🟡 Média</option>
@@ -1400,7 +1421,7 @@ function showTab(name) {
   const tabEl = document.getElementById('tab-'+name);
   if (tabEl) tabEl.classList.add('active');
   // fixas
-  const fixedNames = ['tasks-client','visits','notes','contacts','ocorrencias','cronograma','postagens'];
+  const fixedNames = ['tasks-client','visits','notes','contacts','ocorrencias','cronograma','postagens','arquivos'];
   const idx = fixedNames.indexOf(name);
   if (idx>=0) document.querySelectorAll('#detail-tabs-bar > .detail-tab')[idx].classList.add('active');
   // customizadas
@@ -1413,6 +1434,7 @@ function showTab(name) {
   if(name==='cronograma') loadCronograma(currentClientId);
   if(name==='postagens') loadPostagens(currentClientId);
   if(name==='ocorrencias') loadOcorrencias(currentClientId);
+  if(name==='arquivos') loadArquivos(currentClientId);
   if(name==='contacts') loadContacts(currentClientId);
   if(name==='hours') loadHours(currentClientId);
 }
@@ -2241,7 +2263,7 @@ async function loadOcorrencias(clientId) {
       <div class="visit-dot" style="background:${sevColor[o.severidade]||'var(--gray)'}"></div>
       <div class="visit-body">
         <div class="visit-date">${fmtDateStr(o.date)} &nbsp;·&nbsp; <strong>${o.titulo}</strong></div>
-        <div class="visit-consultant" style="color:${sevColor[o.severidade]||'var(--gray)'}">Severidade: ${(o.severidade||'—').toUpperCase()}</div>
+        <div class="visit-consultant" style="color:${sevColor[o.severidade]||'var(--gray)'}">Severidade: ${(o.severidade||'—').toUpperCase()} ${o.consultor?`· 👤 ${o.consultor}`:''}</div>
         <div class="visit-desc">${o.descricao||''}</div>
         ${o.acao?`<div style="font-size:0.78rem;margin-top:0.3rem"><strong>Ação:</strong> ${o.acao}</div>`:''}
         ${o.imagem?`<img src="${o.imagem}" style="max-width:100%;max-height:200px;border-radius:8px;margin-top:0.5rem;border:1px solid var(--gray-light);cursor:pointer" onclick="window.open(this.src,'_blank')">`:''}
@@ -2292,6 +2314,8 @@ function openOcorrenciaModal() {
   document.getElementById('oc-desc').value='';
   document.getElementById('oc-acao').value='';
   document.getElementById('oc-sev').value='media';
+  const ocSel = document.getElementById('oc-consultor');
+  ocSel.innerHTML = '<option value="">— selecione —</option>' + consultoresCache.map(c=>`<option value="${c}"${c===session.name?' selected':''}>${c}</option>`).join('');
   openModal('modal-ocorrencia');
 }
 async function saveOcorrencia() {
@@ -2304,6 +2328,7 @@ async function saveOcorrencia() {
     descricao:document.getElementById('oc-desc').value.trim(),
     acao:document.getElementById('oc-acao').value.trim(),
     severidade:document.getElementById('oc-sev').value,
+    consultor:document.getElementById('oc-consultor').value||session.name,
     imagem: ocImageBase64 || null,
     created_by:session.name,
     created_at:firebase.firestore.FieldValue.serverTimestamp()
@@ -2314,6 +2339,67 @@ async function deleteOcorrencia(id) {
   if(!confirm('Excluir ocorrência?')) return;
   await db.collection('ocorrencias').doc(id).delete();
   toast('Excluída!'); loadOcorrencias(currentClientId);
+}
+
+// ============================================================
+// ARQUIVOS ANEXOS
+// ============================================================
+async function loadArquivos(clientId) {
+  const snap = await db.collection('arquivos').where('client_id','==',clientId).get();
+  const list = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.created_at?.seconds||0)-(a.created_at?.seconds||0));
+  const container = document.getElementById('arquivos-list');
+  if (!list.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📎</div><p>Nenhum arquivo anexado</p></div>';
+    return;
+  }
+  container.innerHTML = list.map(a=>`
+    <div style="display:flex;align-items:center;gap:0.8rem;padding:0.7rem 1rem;background:var(--white);border-radius:10px;margin-bottom:0.5rem;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+      <span style="font-size:1.4rem">${fileIcon(a.tipo)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.nome}</div>
+        <div style="font-size:0.72rem;color:var(--gray)">${a.created_by||''} · ${fmtDateStr(a.data||'')}</div>
+      </div>
+      <a href="${a.dados}" download="${a.nome}" style="background:#e8f0fe;color:var(--navy);border:none;border-radius:8px;padding:0.3rem 0.7rem;font-size:0.78rem;font-weight:700;cursor:pointer;text-decoration:none">⬇ Baixar</a>
+      <button onclick="deleteArquivo('${a.id}')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:0.85rem">✕</button>
+    </div>`).join('');
+}
+function fileIcon(tipo) {
+  if (!tipo) return '📄';
+  if (tipo.includes('pdf')) return '📕';
+  if (tipo.includes('image')) return '🖼️';
+  if (tipo.includes('word') || tipo.includes('document')) return '📝';
+  if (tipo.includes('sheet') || tipo.includes('excel')) return '📊';
+  if (tipo.includes('presentation') || tipo.includes('powerpoint')) return '📋';
+  return '📄';
+}
+async function uploadArquivo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 800000) { toast('Arquivo muito grande (máx 800KB)', 'error'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = async function(ev) {
+    toast('Salvando arquivo...');
+    await db.collection('arquivos').add({
+      client_id: currentClientId,
+      client_name: currentClientData.name,
+      nome: file.name,
+      tipo: file.type,
+      dados: ev.target.result,
+      data: today(),
+      created_by: session.name,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('Arquivo anexado!');
+    input.value = '';
+    loadArquivos(currentClientId);
+  };
+  reader.readAsDataURL(file);
+}
+async function deleteArquivo(id) {
+  if (!confirm('Remover este arquivo?')) return;
+  await db.collection('arquivos').doc(id).delete();
+  toast('Arquivo removido!');
+  loadArquivos(currentClientId);
 }
 
 // MODAL PERÍODO + HISTÓRICO
@@ -2545,6 +2631,13 @@ async function loadAllTasks() {
     fcSel.innerHTML = '<option value="">Todos consultores</option>' +
       consultoresCache.map(c=>`<option value="${c}">${c}</option>`).join('');
   }
+  // popular filtro de empresa
+  const feSel = document.getElementById('task-filter-empresa');
+  if (feSel) {
+    const empresas = [...new Set(allTasks.map(t=>t.client_name).filter(Boolean))].sort();
+    feSel.innerHTML = '<option value="">Todas as empresas</option>' +
+      empresas.map(e=>`<option value="${e}">${e}</option>`).join('');
+  }
   renderTasks(allTasks);
 }
 
@@ -2660,9 +2753,11 @@ function renderTasks(list) {
   const q = document.getElementById('task-search').value.toLowerCase();
   const f = document.getElementById('task-filter').value;
   const fc = document.getElementById('task-filter-consultor').value;
+  const fe = (document.getElementById('task-filter-empresa')||{}).value||'';
   let filtered = list;
   if (q) filtered = filtered.filter(t=>t.title.toLowerCase().includes(q)||(t.client_name||'').toLowerCase().includes(q));
   if (f!=='all') filtered = filtered.filter(t=>(t.status||'pending')===f);
+  if (fe) filtered = filtered.filter(t=>(t.client_name||'')===fe);
   if (fc) filtered = filtered.filter(t=>{
     const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
     return arr.includes(fc);
