@@ -213,6 +213,8 @@ tr:hover td{background:#F8FAFC}
 .contact-info{color:var(--gray);font-size:0.82rem}
 /* CALENDAR */
 #calendar-wrap{background:var(--white);border-radius:12px;padding:1.2rem;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+#calendar-iframe{width:100%;height:600px;border:none;display:block}
+@media(min-width:768px){#calendar-iframe{height:calc(100vh - 220px);min-height:620px}}
 .fc .fc-toolbar-title{color:var(--navy)!important;font-size:1.1rem!important}
 .fc .fc-button-primary{background:var(--navy)!important;border-color:var(--navy)!important}
 .fc .fc-button-primary:hover{background:var(--navy-light)!important}
@@ -638,7 +640,7 @@ tr:hover td{background:#F8FAFC}
           <p style="font-size:0.85rem;text-align:center">Clique em ⚙️ Configurar minha agenda e cole o link de incorporação do Google Calendar</p>
           <button class="btn btn-primary" onclick="openCalendarSettings()">Configurar agenda</button>
         </div>
-        <iframe id="calendar-iframe" src="" style="display:none;width:100%;height:700px;border:none" allowfullscreen></iframe>
+        <iframe id="calendar-iframe" src="" style="display:none" allowfullscreen></iframe>
       </div>
     </div>
 
@@ -3901,11 +3903,27 @@ function showCalendarPlaceholder() {
   if (fr) { fr.src = ''; fr.style.display = 'none'; }
 }
 
-function showCalendarIframe(url) {
+function showCalendarIframe(rawUrl) {
   const ph = document.getElementById('calendar-placeholder');
   const fr = document.getElementById('calendar-iframe');
   if (ph) ph.style.display = 'none';
-  if (fr) { fr.src = url; fr.style.display = 'block'; }
+  if (fr) {
+    // forçar visão semanal e remover controles desnecessários
+    let url = rawUrl;
+    try {
+      const u = new URL(url);
+      u.searchParams.set('mode', 'WEEK');
+      u.searchParams.set('showNav', '1');
+      u.searchParams.set('showDate', '1');
+      u.searchParams.set('showTitle', '0');
+      u.searchParams.set('showPrint', '0');
+      u.searchParams.set('showTabs', '0');
+      u.searchParams.set('showCalendars', '0');
+      url = u.toString();
+    } catch(e) {}
+    fr.src = url;
+    fr.style.display = 'block';
+  }
 }
 
 async function openCalendarSettings() {
