@@ -3142,11 +3142,15 @@ function renderTaskList(list, containerId) {
     const subsDone = subs.filter(s=>s.done).length;
     const subsPct = subs.length ? Math.round(subsDone/subs.length*100) : 0;
     const subsBarColor = subsPct===100?'#27AE60':subsPct>=50?'#F39C12':'#2980B9';
+    const subsHrsTotal = subs.reduce((acc,s)=>acc+parseHHMM(s.hours||'0'),0);
+    const subsHrsDone  = subs.filter(s=>s.done).reduce((acc,s)=>acc+parseHHMM(s.hours||'0'),0);
+    const subsHrsHtml  = subsHrsTotal>0 ? `<span style="font-size:0.7rem;color:#E65100;font-weight:600;white-space:nowrap">⏱ ${fmtHHMM(subsHrsDone)}/${fmtHHMM(subsHrsTotal)}</span>` : '';
     const progressHtml = subs.length ? `
       <div class="subtask-progress">
         <span style="font-size:0.7rem;color:var(--gray);white-space:nowrap">${subsDone}/${subs.length} subtarefas</span>
         <div class="subtask-progress-bar"><div class="subtask-progress-fill" style="width:${subsPct}%;background:${subsBarColor}"></div></div>
         <span style="font-size:0.7rem;font-weight:700;color:${subsBarColor}">${subsPct}%</span>
+        ${subsHrsHtml}
       </div>` : '';
     const subsHtml = subs.length ? `
       <div class="subtask-list">
