@@ -1019,11 +1019,15 @@ tr:hover td{background:#F8FAFC}
         <input type="date" id="st-due">
       </div>
       <div class="form-group">
-        <label>Designado</label>
-        <select id="st-assigned">
-          <option value="">— ninguém —</option>
-        </select>
+        <label>Horas</label>
+        <input type="text" id="st-hours" placeholder="ex: 1:30" style="width:100%">
       </div>
+    </div>
+    <div class="form-group">
+      <label>Designado</label>
+      <select id="st-assigned">
+        <option value="">— ninguém —</option>
+      </select>
     </div>
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">
       <button class="btn btn-ghost" onclick="closeModal('modal-subtask')">Cancelar</button>
@@ -2987,6 +2991,7 @@ window.openSubtaskModal = function(taskId) {
   document.getElementById('st-task-id').value = taskId;
   document.getElementById('st-title').value = '';
   document.getElementById('st-due').value = '';
+  document.getElementById('st-hours').value = '';
   document.getElementById('st-sub-id').value = '';
   document.getElementById('modal-subtask-title').textContent = '➕ Nova Subtarefa';
   const sel = document.getElementById('st-assigned');
@@ -3007,6 +3012,7 @@ window.editSubtask = async function(taskId, subId) {
   document.getElementById('st-sub-id').value = subId;
   document.getElementById('st-title').value = s.title||'';
   document.getElementById('st-due').value = s.due||'';
+  document.getElementById('st-hours').value = s.hours||'';
   document.getElementById('modal-subtask-title').textContent = '✏️ Editar Subtarefa';
   const sel = document.getElementById('st-assigned');
   sel.innerHTML = '<option value="">— ninguém —</option>' +
@@ -3019,15 +3025,16 @@ window.saveSubtask = async function() {
   const taskId = document.getElementById('st-task-id').value;
   const title = document.getElementById('st-title').value.trim();
   const due = document.getElementById('st-due').value;
+  const hours = document.getElementById('st-hours').value.trim();
   const assigned = document.getElementById('st-assigned').value;
   if (!title) { toast('Digite o título da subtarefa', 'error'); return; }
   const doc = await db.collection('tasks').doc(taskId).get();
   let current = doc.data().subtasks || [];
   if (subId) {
-    current = current.map(s => s.id===subId ? {...s, title, due, assigned_to: assigned} : s);
+    current = current.map(s => s.id===subId ? {...s, title, due, hours, assigned_to: assigned} : s);
   } else {
     const newId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-    current.push({ id: newId, title, due, assigned_to: assigned, done: false });
+    current.push({ id: newId, title, due, hours, assigned_to: assigned, done: false });
   }
   await db.collection('tasks').doc(taskId).update({ subtasks: current });
   const t = allTasks.find(x=>x.id===taskId);
@@ -3040,10 +3047,56 @@ window.saveSubtask = async function() {
 
 window.toggleSubtask = async function(taskId, subId) {
   const doc = await db.collection('tasks').doc(taskId).get();
-  const subtasks = (doc.data().subtasks || []).map(s=>s.id===subId?{...s,done:!s.done}:s);
+  const taskData = doc.data();
+  const prevSubs = taskData.subtasks || [];
+  const sub = prevSubs.find(s=>s.id===subId);
+  const nowDone = sub ? !sub.done : false;
+  const subtasks = prevSubs.map(s=>s.id===subId?{...s,done:!s.done}:s);
   await db.collection('tasks').doc(taskId).update({ subtasks });
-  const t = allTasks.find(x=>x.id===taskId);
+  let t = allTasks.find(x=>x.id===taskId);
+  if (!t) {
+    try { const d = await db.collection('tasks').doc(taskId).get(); if(d.exists) t={id:d.id,...d.data()}; } catch(e){}
+  }
   if (t) t.subtasks = subtasks;
+
+  // ao marcar como concluída: registrar visita se tiver horas e cliente
+  if (nowDone && sub && sub.hours && taskData.client_id) {
+    const hrsVal = sub.hours.trim();
+    if (parseHHMM(hrsVal) > 0) {
+      const date = sub.due || new Date().toISOString().slice(0,10);
+      const consultor = sub.assigned_to || (t && Array.isArray(t.assigned_to) ? t.assigned_to[0] : '') || session?.name || '';
+      const visitData = {
+        client_id: taskData.client_id,
+        date,
+        hours: hrsVal,
+        description: sub.title + (t?.title ? ' (subtarefa de: ' + t.title + ')' : ''),
+        created_by: consultor,
+        source_subtask_id: subId,
+        source_task_id: taskId,
+        auto_generated: true
+      };
+      // Verificar se já existe visita desta subtarefa
+      const vSnap = await db.collection('visits').where('source_subtask_id','==',subId).get();
+      if (vSnap.empty) {
+        await db.collection('visits').add(visitData);
+        toast('✅ Subtarefa concluída e visita registrada automaticamente!');
+      } else {
+        await db.collection('visits').doc(vSnap.docs[0].id).update({ hours: hrsVal, date, description: visitData.description });
+        toast('✅ Visita da subtarefa atualizada!');
+      }
+      if (typeof loadVisits === 'function' && currentClientId === taskData.client_id) loadVisits(currentClientId);
+    }
+  }
+
+  // ao desmarcar: remover visita gerada
+  if (!nowDone && sub) {
+    const vSnap = await db.collection('visits').where('source_subtask_id','==',subId).get();
+    if (!vSnap.empty) {
+      await vSnap.docs[0].ref.delete();
+      if (typeof loadVisits === 'function' && currentClientId === taskData.client_id) loadVisits(currentClientId);
+    }
+  }
+
   // auto-completar tarefa pai se todas concluídas
   if (subtasks.length > 0 && subtasks.every(s=>s.done)) {
     await db.collection('tasks').doc(taskId).update({ status: 'done' });
@@ -3101,6 +3154,7 @@ function renderTaskList(list, containerId) {
         <div class="subtask-item">
           <input type="checkbox" class="subtask-check" ${s.done?'checked':''} onchange="toggleSubtask('${t.id}','${s.id}')">
           <span style="flex:1;font-size:0.82rem${s.done?';text-decoration:line-through;color:var(--gray)':''}">${s.title}</span>
+          ${s.hours?`<span style="font-size:0.72rem;background:#fff3e0;color:#E65100;border-radius:10px;padding:0.1rem 0.4rem;font-weight:600">⏱ ${s.hours}</span>`:''}
           ${s.due?`<span style="font-size:0.72rem;color:var(--gray)">📅 ${fmtDateStr(s.due)}</span>`:''}
           ${s.assigned_to?`<span style="font-size:0.72rem;background:#e8f0fe;color:var(--navy);border-radius:10px;padding:0.1rem 0.4rem">👤 ${s.assigned_to}</span>`:''}
           <button onclick="editSubtask('${t.id}','${s.id}')" style="background:none;border:none;color:#7C3AED;cursor:pointer;font-size:0.75rem;padding:0 0.2rem" title="Editar">✏️</button>
