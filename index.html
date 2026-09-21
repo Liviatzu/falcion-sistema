@@ -639,6 +639,11 @@ tr:hover td{background:#F8FAFC}
       </div>
       <!-- Abas de consultoras (master vê todas) -->
       <div id="cal-tabs-bar" style="display:none;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem"></div>
+      <!-- botão fallback: abre agenda em nova aba quando iframe é bloqueado -->
+      <div id="cal-open-bar" style="display:none;margin-bottom:0.7rem">
+        <a id="cal-open-link" href="#" target="_blank" class="btn btn-primary btn-sm">📅 Abrir Agenda no Google Calendar</a>
+        <span style="font-size:0.78rem;color:var(--gray);margin-left:0.7rem">Se a agenda não carregar abaixo, clique aqui</span>
+      </div>
       <div id="calendar-wrap" style="border-radius:12px;overflow:hidden;min-height:400px;background:var(--white)">
         <div id="calendar-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;gap:1rem;color:var(--gray)">
           <div style="font-size:2.5rem">📅</div>
@@ -3905,30 +3910,46 @@ function selectCalendarTab(btn, encodedUrl, e) {
 function showCalendarPlaceholder() {
   const ph = document.getElementById('calendar-placeholder');
   const fr = document.getElementById('calendar-iframe');
+  const bar = document.getElementById('cal-open-bar');
   if (ph) ph.style.display = 'flex';
   if (fr) { fr.src = ''; fr.style.display = 'none'; }
+  if (bar) bar.style.display = 'none';
 }
 
 function showCalendarIframe(rawUrl) {
   const ph = document.getElementById('calendar-placeholder');
   const fr = document.getElementById('calendar-iframe');
+  const bar = document.getElementById('cal-open-bar');
+  const openLink = document.getElementById('cal-open-link');
   if (ph) ph.style.display = 'none';
-  if (fr) {
-    // forçar visão semanal e remover controles desnecessários
-    let url = rawUrl;
-    try {
-      const u = new URL(url);
-      u.searchParams.set('mode', 'WEEK');
-      u.searchParams.set('showNav', '1');
-      u.searchParams.set('showDate', '1');
-      u.searchParams.set('showTitle', '0');
-      u.searchParams.set('showPrint', '0');
-      u.searchParams.set('showTabs', '0');
-      u.searchParams.set('showCalendars', '0');
-      url = u.toString();
-    } catch(e) {}
-    fr.src = url;
-    fr.style.display = 'block';
+  if (!fr) return;
+
+  // forçar visão semanal
+  let embedUrl = rawUrl;
+  let directUrl = rawUrl;
+  try {
+    const u = new URL(rawUrl);
+    u.searchParams.set('mode', 'WEEK');
+    u.searchParams.set('showNav', '1');
+    u.searchParams.set('showDate', '1');
+    u.searchParams.set('showTitle', '0');
+    u.searchParams.set('showPrint', '0');
+    u.searchParams.set('showTabs', '0');
+    u.searchParams.set('showCalendars', '0');
+    embedUrl = u.toString();
+    // URL de visualização direta (abre no Google Calendar normal)
+    directUrl = rawUrl.replace('/calendar/embed', '/calendar/r/week').replace(/[?&]src=([^&]*)/, '');
+    if (directUrl === rawUrl) directUrl = 'https://calendar.google.com/calendar/r/week';
+  } catch(e) {}
+
+  fr.src = embedUrl;
+  fr.style.display = 'block';
+
+  // mostrar botão de fallback sempre que houver URL
+  if (bar && openLink) {
+    openLink.href = directUrl;
+    bar.style.display = 'flex';
+    bar.style.alignItems = 'center';
   }
 }
 
