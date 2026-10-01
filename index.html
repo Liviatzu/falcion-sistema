@@ -3725,8 +3725,27 @@ async function loadCronograma(clientId, targetMonth) {
     renderCronograma();
     return;
   }
-  // Sem doc salvo → abre em branco para Débora preencher
-  cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
+  // Mês atual sem doc salvo → em branco para Débora preencher
+  if (targetMonth === curYM2) {
+    cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
+    renderCronograma();
+    return;
+  }
+  // Mês passado sem doc salvo → gera das tarefas daquele mês
+  const statusMap = { pending:'A Fazer', in_progress:'Em Andamento', done:'Concluído' };
+  const snap = await db.collection('tasks').where('client_id','==',clientId).get();
+  const taskRows = snap.docs.map(d=>d.data())
+    .filter(t => t.due && t.due.startsWith(targetMonth))
+    .sort((a,b)=>(a.title||'').localeCompare(b.title||''))
+    .map(t=>({
+      fase: t.title||'',
+      responsavel: Array.isArray(t.assigned_to) ? t.assigned_to.join(', ') : (t.assigned_to||''),
+      inicio: '',
+      fim: t.due||'',
+      status: statusMap[t.status||'pending']||'A Fazer',
+      obs: t.tempo_previsto ? fmtHHMM(parseHHMM(t.tempo_previsto))+'h' : ''
+    }));
+  cronRows = taskRows.length ? taskRows : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
   renderCronograma();
 }
 
