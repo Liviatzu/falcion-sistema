@@ -1453,6 +1453,8 @@ let session = null;
 let allProfiles = [];
 let allClients = [];
 let clientMonthUsed = {};
+let clientSepUsed = {};
+let clientSepInitial = {};
 let allTasks = [];
 let currentClientId = null;
 let currentClientData = null;
@@ -2040,6 +2042,23 @@ async function loadClients() {
     const v=d.data();
     clientMonthUsed[v.client_id]=(clientMonthUsed[v.client_id]||0)+parseHHMM(v.hours);
   });
+  // Carregar visitas de setembro para exibir no card
+  clientSepUsed = {};
+  clientSepInitial = {};
+  try {
+    const sepSnap = await db.collection('visits')
+      .where('date','>=','2026-09-01').where('date','<=','2026-09-30').get();
+    sepSnap.docs.forEach(d=>{
+      const v=d.data();
+      clientSepUsed[v.client_id]=(clientSepUsed[v.client_id]||0)+parseHHMM(v.hours);
+    });
+    const histSnap = await db.collection('historico_mensal')
+      .where('month','==','2026-09').get();
+    histSnap.docs.forEach(d=>{
+      const h=d.data();
+      if (h.client_id) clientSepInitial[h.client_id]=h.initial_hours||'0:00';
+    });
+  } catch(e){}
   // Load pending tasks do mês atual para comparar com horas iniciais
   clientTaskHours = {};
   try {
@@ -2112,6 +2131,21 @@ function renderClients(list) {
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Usado no mês</span>
         <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
       </div>
+      ${(()=>{
+        const sepU = clientSepUsed[c.id]||0;
+        const sepIniStr = clientSepInitial[c.id]||c.initial_hours||'0:00';
+        const sepIni = parseHHMM(sepIniStr);
+        if (!sepU && !clientSepInitial[c.id]) return '';
+        const sepSaldo = sepIni - sepU;
+        const sepNeg = sepSaldo < 0;
+        return `<div style="margin-top:0.35rem;padding:0.4rem 0.5rem;background:#F0F4FF;border-radius:7px;border-left:3px solid #3498DB">
+          <div style="font-size:0.65rem;color:#3498DB;font-weight:700;margin-bottom:0.2rem;text-transform:uppercase;letter-spacing:0.4px">Set/26</div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="font-size:0.68rem;color:#555">Usado: <b>${fmtHHMM(sepU)}</b></span>
+            <span style="font-size:0.68rem;font-weight:700;color:${sepNeg?'#E74C3C':'#27AE60'}">Saldo: ${fmtHHMM(sepSaldo)}</span>
+          </div>
+        </div>`;
+      })()}
       <div style="display:flex;gap:0.4rem;align-items:center">
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. Contratuais</span>
         <input type="text" value="${c.monthly_quota_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','monthly_quota_hours',this.value)" placeholder="0:00">
