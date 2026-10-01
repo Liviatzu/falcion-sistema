@@ -3722,7 +3722,15 @@ async function loadCronograma(clientId, targetMonth) {
 
   // Carrega o mês escolhido
   if (cronByMonth[targetMonth]) {
-    cronRows = cronByMonth[targetMonth].length ? cronByMonth[targetMonth] : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
+    let rows = cronByMonth[targetMonth];
+    // Se todas as linhas têm prazo de mês diferente do selecionado, ignora o doc (salvo por engano)
+    const rowsComPrazo = rows.filter(r => r.fim);
+    const todasForaMes = rowsComPrazo.length > 0 && rowsComPrazo.every(r => !r.fim.startsWith(targetMonth));
+    if (todasForaMes && targetMonth === curYM2) {
+      // Doc corrompido para o mês atual → trata como vazio
+      rows = [];
+    }
+    cronRows = rows.length ? rows : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
     renderCronograma();
     return;
   }
