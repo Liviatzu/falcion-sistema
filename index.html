@@ -3688,25 +3688,16 @@ async function loadCronograma(clientId, targetMonth) {
   if (!targetMonth) targetMonth = curYM2;
   cronMonth = targetMonth;
 
-  // Migra doc antigo (sem client_id/month) para o mês anterior, se ainda existir
-  try {
-    const oldDoc = await db.collection('cronograma').doc(clientId).get();
-    if (oldDoc.exists && !oldDoc.data().month) {
-      const oldData = oldDoc.data();
-      await db.collection('cronograma').doc(clientId+'_'+prevYM).set({
-        client_id: clientId, month: prevYM,
-        rows: oldData.rows||[],
-        updated_by: oldData.updated_by||'—',
-        updated_at: oldData.updated_at||firebase.firestore.FieldValue.serverTimestamp()
-      });
-      await db.collection('cronograma').doc(clientId).delete();
-    }
-  } catch(e){}
-
-  // Busca todos os meses que têm cronograma salvo para montar o seletor
-  const allCronSnap = await db.collection('cronograma')
-    .where('client_id','==',clientId).get();
+  // Busca docs novos (com client_id) e doc legado (sem month) em paralelo
+  const [allCronSnap, oldDoc] = await Promise.all([
+    db.collection('cronograma').where('client_id','==',clientId).get(),
+    db.collection('cronograma').doc(clientId).get()
+  ]);
+  // Doc legado existe e ainda não foi migrado → trata como mês anterior (setembro)
+  const legacyRows = (oldDoc.exists && !oldDoc.data().month) ? (oldDoc.data().rows||[]) : null;
   const savedMonths = allCronSnap.docs.map(d=>d.data().month).filter(Boolean).sort().reverse();
+  if (legacyRows && !savedMonths.includes(prevYM)) savedMonths.push(prevYM);
+  savedMonths.sort().reverse();
   if (!savedMonths.includes(curYM2)) savedMonths.unshift(curYM2);
   const monthLabels = m => {
     const [y,mo] = m.split('-');
@@ -3727,8 +3718,13 @@ async function loadCronograma(clientId, targetMonth) {
     renderCronograma();
     return;
   }
-
-  // Mês sem doc salvo → abre em branco (Débora cria o cronograma do zero ou importa tarefas)
+  // Fallback: doc legado (setembro) sem migração
+  if (legacyRows && targetMonth === prevYM) {
+    cronRows = legacyRows.length ? legacyRows : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
+    renderCronograma();
+    return;
+  }
+  // Mês sem doc salvo → abre em branco
   cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
   renderCronograma();
 }
