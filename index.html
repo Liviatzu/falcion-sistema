@@ -1127,6 +1127,16 @@ tr:hover td{background:#F8FAFC}
     <div class="form-group"><label>Descrição</label>
       <textarea id="kc-desc" rows="2" placeholder="Detalhes (opcional)..."></textarea>
     </div>
+    <div class="form-group"><label>Cliente</label>
+      <select id="kc-client">
+        <option value="">— nenhum —</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Responsável</label>
+      <select id="kc-assigned">
+        <option value="">— ninguém —</option>
+      </select>
+    </div>
     <div class="form-row">
       <div class="form-group"><label>Prazo</label>
         <input type="date" id="kc-due">
@@ -4589,10 +4599,15 @@ function renderKanban() {
         ? `<button class="kanban-move-btn" onclick="event.stopPropagation();moveKanban('${c.id}','todo')" ${late?'disabled title="Atrasado: não pode voltar"':''}>←</button>` : '';
       const nextBtn = st !== 'done'
         ? `<button class="kanban-move-btn" style="background:${st==='todo'?'#EBF5FB':'#EAFAF1'}" onclick="event.stopPropagation();moveKanban('${c.id}','${st==='todo'?'doing':'done'}')">${st==='todo'?'→ Fazendo':'→ Feito'}</button>` : '';
+      const metaHtml = [
+        c.client_name ? `<span style="background:#e8f0fe;color:var(--navy);border-radius:10px;padding:0.1rem 0.45rem;font-size:0.7rem;font-weight:600">🏢 ${c.client_name}</span>` : '',
+        c.assigned ? `<span style="background:#f3e8fd;color:#7C3AED;border-radius:10px;padding:0.1rem 0.45rem;font-size:0.7rem;font-weight:600">👤 ${c.assigned}</span>` : ''
+      ].filter(Boolean).join(' ');
       return `
       <div class="kanban-card${late?' late':''} prio-${c.prio||'medium'}" onclick="editKanbanCard('${c.id}')">
         <div class="kanban-card-title">${c.title}</div>
         ${c.desc ? `<div class="kanban-card-desc">${c.desc}</div>` : ''}
+        ${metaHtml ? `<div style="margin-bottom:0.35rem;display:flex;flex-wrap:wrap;gap:0.25rem">${metaHtml}</div>` : ''}
         <div class="kanban-card-footer">
           <span class="kanban-card-due" style="color:${dueColor}">${dueText}</span>
           <div class="kanban-card-actions">${prevBtn}${nextBtn}</div>
@@ -4600,6 +4615,15 @@ function renderKanban() {
       </div>`;
     }).join('');
   });
+}
+
+function _fillKanbanSelects(clientId, assigned) {
+  const cSel = document.getElementById('kc-client');
+  const aSel = document.getElementById('kc-assigned');
+  cSel.innerHTML = '<option value="">— nenhum —</option>' +
+    (allClients||[]).map(c=>`<option value="${c.id}" data-name="${c.name}"${c.id===clientId?' selected':''}>${c.name}</option>`).join('');
+  aSel.innerHTML = '<option value="">— ninguém —</option>' +
+    (consultoresCache||[]).map(c=>`<option value="${c}"${c===assigned?' selected':''}>${c}</option>`).join('');
 }
 
 function openKanbanModal(statusInit) {
@@ -4611,6 +4635,7 @@ function openKanbanModal(statusInit) {
   document.getElementById('kc-status-init').value = statusInit || 'todo';
   document.getElementById('modal-kanban-title').textContent = '📋 Nova Tarefa';
   document.getElementById('kc-delete-btn').style.display = 'none';
+  _fillKanbanSelects('', session.name);
   openModal('modal-kanban-card');
 }
 
@@ -4625,6 +4650,7 @@ function editKanbanCard(id) {
   document.getElementById('kc-status-init').value = c.status || 'todo';
   document.getElementById('modal-kanban-title').textContent = '✏️ Editar Tarefa';
   document.getElementById('kc-delete-btn').style.display = 'inline-block';
+  _fillKanbanSelects(c.client_id||'', c.assigned||'');
   openModal('modal-kanban-card');
 }
 
@@ -4632,11 +4658,17 @@ window.saveKanbanCard = async function() {
   const id = document.getElementById('kc-id').value;
   const title = document.getElementById('kc-title').value.trim();
   if (!title) { toast('Digite o título da tarefa', 'error'); return; }
+  const cSel = document.getElementById('kc-client');
+  const clientId = cSel.value;
+  const clientName = clientId ? (cSel.options[cSel.selectedIndex].dataset.name||'') : '';
   const data = {
     title,
     desc: document.getElementById('kc-desc').value.trim(),
     due: document.getElementById('kc-due').value,
     prio: document.getElementById('kc-prio').value,
+    client_id: clientId,
+    client_name: clientName,
+    assigned: document.getElementById('kc-assigned').value,
     owner: session.name,
     status: document.getElementById('kc-status-init').value || 'todo'
   };
