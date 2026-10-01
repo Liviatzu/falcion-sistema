@@ -3684,8 +3684,24 @@ async function importarTarefasCron() {
 async function loadCronograma(clientId, targetMonth) {
   const now2 = new Date();
   const curYM2 = `${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}`;
+  const prevYM = (()=>{ const d=new Date(now2.getFullYear(),now2.getMonth()-1,1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })();
   if (!targetMonth) targetMonth = curYM2;
   cronMonth = targetMonth;
+
+  // Migra doc antigo (sem client_id/month) para o mês anterior, se ainda existir
+  try {
+    const oldDoc = await db.collection('cronograma').doc(clientId).get();
+    if (oldDoc.exists && !oldDoc.data().month) {
+      const oldData = oldDoc.data();
+      await db.collection('cronograma').doc(clientId+'_'+prevYM).set({
+        client_id: clientId, month: prevYM,
+        rows: oldData.rows||[],
+        updated_by: oldData.updated_by||'—',
+        updated_at: oldData.updated_at||firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await db.collection('cronograma').doc(clientId).delete();
+    }
+  } catch(e){}
 
   // Busca todos os meses que têm cronograma salvo para montar o seletor
   const allCronSnap = await db.collection('cronograma')
@@ -3712,24 +3728,8 @@ async function loadCronograma(clientId, targetMonth) {
     return;
   }
 
-  // Mês sem doc salvo → gera a partir das tarefas (só para mês atual)
-  const statusMap = { pending:'A Fazer', in_progress:'Em Andamento', done:'Concluído' };
-  const snap = await db.collection('tasks').where('client_id','==',clientId).get();
-  const taskRows = snap.docs.map(d=>d.data())
-    .filter(t=>{
-      if (t.due && !t.due.startsWith(curYM2) && (t.status||'pending')==='done') return false;
-      return true;
-    })
-    .sort((a,b)=>(a.title||'').localeCompare(b.title||''))
-    .map(t=>({
-      fase: t.title||'',
-      responsavel: Array.isArray(t.assigned_to) ? t.assigned_to.join(', ') : (t.assigned_to||''),
-      inicio: '',
-      fim: t.due||'',
-      status: statusMap[t.status||'pending']||'A Fazer',
-      obs: t.tempo_previsto ? fmtHHMM(parseHHMM(t.tempo_previsto))+'h' : ''
-    }));
-  cronRows = taskRows.length ? taskRows : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
+  // Mês sem doc salvo → abre em branco (Débora cria o cronograma do zero ou importa tarefas)
+  cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
   renderCronograma();
 }
 
