@@ -4029,12 +4029,16 @@ async function virarMes() {
   const monthLabel = ymDate.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
 
   const initial = parseHHMM(currentClientData.initial_hours || '0');
+  const quota  = parseHHMM(currentClientData.monthly_quota_hours || '0');
   const thisMonthVisits = allVisitsCache.filter(v => v.date && v.date.startsWith(ym));
   const used = thisMonthVisits.reduce((s,v) => s + parseHHMM(v.hours), 0);
   const saldo = initial - used;
-  const novoInicial = fmtHHMM(Math.max(0, saldo));
+  // Novo inicial = horas contratuais + saldo (positivo soma, negativo debita)
+  const novoInicialDecimal = quota + saldo;
+  const novoInicial = fmtHHMM(Math.max(0, novoInicialDecimal));
 
-  const msg = `Virar mês?\n\nMês sendo fechado: ${monthLabel}\nHoras iniciais: ${fmtHHMM(initial)}\nUsado no mês: ${fmtHHMM(used)}\nSaldo / Novo inicial: ${fmtHHMM(saldo)}`;
+  const saldoLabel = saldo >= 0 ? `+${fmtHHMM(saldo)}` : `-${fmtHHMM(Math.abs(saldo))}`;
+  const msg = `Virar mês?\n\nMês sendo fechado: ${monthLabel}\nHoras iniciais: ${fmtHHMM(initial)}\nUsado no mês: ${fmtHHMM(used)}\nSaldo: ${saldoLabel}\n\nHoras contratuais: ${fmtHHMM(quota)}\nNovo inicial (próximo mês): ${novoInicial}`;
   if (!confirm(msg)) return;
 
   // Salva histórico com o mês correto (o mês sendo fechado)
