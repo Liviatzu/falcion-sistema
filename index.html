@@ -3850,6 +3850,8 @@ async function saveCronograma() {
     document.getElementById('cron-save-status').textContent = '✅ Salvo';
     setTimeout(()=>{ const el=document.getElementById('cron-save-status'); if(el) el.textContent=''; }, 3000);
     toast('Cronograma salvo!');
+    // Recarrega para atualizar o seletor com o mês recém-salvo
+    await loadCronograma(currentClientId, cronMonth);
   } catch(e) { toast('Erro: '+e.message,'error'); document.getElementById('cron-save-status').textContent=''; }
 }
 
