@@ -625,6 +625,11 @@ tr:hover td{background:#F8FAFC}
 
       <!-- CRONOGRAMA TAB -->
       <div class="tab-content" id="tab-cronograma">
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;align-items:center">
+          <label style="font-size:0.78rem;color:var(--gray);font-weight:600">📅 Mês:</label>
+          <select id="cron-month-sel" onchange="changeCronMonth(this.value)" style="font-size:0.82rem;padding:0.25rem 0.5rem;border:1px solid #ddd;border-radius:6px;color:var(--navy);font-weight:600"></select>
+          <span id="cron-month-badge" style="font-size:0.72rem;color:#fff;background:var(--gold);padding:0.15rem 0.5rem;border-radius:10px;display:none">histórico</span>
+        </div>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
           <button class="btn btn-primary btn-sm" onclick="addCronRow()">+ Linha</button>
           <button class="btn btn-ghost btn-sm" onclick="importarTarefasCron()">📥 Importar Tarefas</button>
@@ -3648,6 +3653,7 @@ async function deleteContact(idx) {
 // CRONOGRAMA — EDITOR DE TABELA
 // ============================================================
 let cronRows = [];
+let cronMonth = '';
 
 const CRON_STATUS = ['A Fazer','Em Andamento','Concluído','Cancelado'];
 const CRON_STATUS_COLOR = {
@@ -3675,16 +3681,42 @@ async function importarTarefasCron() {
   toast('✅ '+cronRows.length+' tarefas importadas! Revise e clique em Salvar.');
 }
 
-async function loadCronograma(clientId) {
-  // Sempre carrega as tarefas ativas do cliente como base do cronograma
-  const snap = await db.collection('tasks').where('client_id','==',clientId).get();
-  const statusMap = { pending:'A Fazer', in_progress:'Em Andamento', done:'Concluído' };
+async function loadCronograma(clientId, targetMonth) {
   const now2 = new Date();
   const curYM2 = `${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}`;
+  if (!targetMonth) targetMonth = curYM2;
+  cronMonth = targetMonth;
+
+  // Busca todos os meses que têm cronograma salvo para montar o seletor
+  const allCronSnap = await db.collection('cronograma')
+    .where('client_id','==',clientId).get();
+  const savedMonths = allCronSnap.docs.map(d=>d.data().month).filter(Boolean).sort().reverse();
+  if (!savedMonths.includes(curYM2)) savedMonths.unshift(curYM2);
+  const monthLabels = m => {
+    const [y,mo] = m.split('-');
+    return new Date(+y, +mo-1, 1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  };
+  const sel = document.getElementById('cron-month-sel');
+  if (sel) {
+    sel.innerHTML = savedMonths.map(m=>`<option value="${m}"${m===targetMonth?' selected':''}>${monthLabels(m)}</option>`).join('');
+  }
+  const badge = document.getElementById('cron-month-badge');
+  if (badge) badge.style.display = targetMonth !== curYM2 ? 'inline' : 'none';
+
+  // Carrega o doc salvo do mês escolhido
+  const saved = allCronSnap.docs.find(d=>d.data().month===targetMonth);
+  if (saved) {
+    cronRows = saved.data().rows || [];
+    if (!cronRows.length) cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
+    renderCronograma();
+    return;
+  }
+
+  // Mês sem doc salvo → gera a partir das tarefas (só para mês atual)
+  const statusMap = { pending:'A Fazer', in_progress:'Em Andamento', done:'Concluído' };
+  const snap = await db.collection('tasks').where('client_id','==',clientId).get();
   const taskRows = snap.docs.map(d=>d.data())
     .filter(t=>{
-      // inclui todas as tarefas do mês atual (ativas e concluídas)
-      // e tarefas pendentes/em andamento de outros meses (para não sumir)
       if (t.due && !t.due.startsWith(curYM2) && (t.status||'pending')==='done') return false;
       return true;
     })
@@ -3700,6 +3732,10 @@ async function loadCronograma(clientId) {
   cronRows = taskRows.length ? taskRows : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
   renderCronograma();
 }
+
+window.changeCronMonth = function(m) {
+  loadCronograma(currentClientId, m);
+};
 
 function renderCronograma() {
   const el = document.getElementById('cronograma-editor');
@@ -3785,7 +3821,10 @@ function removeCronRow(i) {
 async function saveCronograma() {
   document.getElementById('cron-save-status').textContent = 'Salvando...';
   try {
-    await db.collection('cronograma').doc(currentClientId).set({
+    const docId = currentClientId + '_' + cronMonth;
+    await db.collection('cronograma').doc(docId).set({
+      client_id: currentClientId,
+      month: cronMonth,
       rows: cronRows,
       updated_by: session ? session.name : '—',
       updated_at: firebase.firestore.FieldValue.serverTimestamp()
@@ -3798,6 +3837,7 @@ async function saveCronograma() {
 
 function gerarPDFCronograma() {
   const clientName = currentClientData ? currentClientData.name : 'Cliente';
+  const mesLabel = cronMonth ? new Date(cronMonth+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'}) : '';
   const hoje = new Date().toLocaleDateString('pt-BR');
   const statusColor = { 'A Fazer':'#e8edf2','Em Andamento':'#fff3cd','Concluído':'#d4edda','Cancelado':'#f8d7da' };
 
@@ -3812,7 +3852,7 @@ function gerarPDFCronograma() {
     </tr>`).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Cronograma — ${clientName}</title>
+    <title>Cronograma — ${clientName}${mesLabel?' — '+mesLabel:''}</title>
     <style>
       * { margin:0;padding:0;box-sizing:border-box }
       body { font-family:Arial,sans-serif;padding:30px;color:#1A2F4A }
