@@ -634,6 +634,7 @@ tr:hover td{background:#F8FAFC}
           <button class="btn btn-primary btn-sm" onclick="addCronRow()">+ Linha</button>
           <button class="btn btn-ghost btn-sm" onclick="importarTarefasCron()">📥 Importar Tarefas</button>
           <button class="btn btn-ghost btn-sm" onclick="saveCronograma()">💾 Salvar</button>
+          <button class="btn btn-ghost btn-sm" onclick="limparCronograma()" style="color:var(--danger);border-color:var(--danger)">🗑 Limpar mês</button>
           <button class="btn btn-ghost btn-sm" onclick="gerarPDFCronograma()">📄 Gerar PDF</button>
           <span id="cron-save-status" style="font-size:0.75rem;color:var(--gray);margin-left:0.25rem"></span>
         </div>
@@ -3751,6 +3752,16 @@ async function loadCronograma(clientId, targetMonth) {
 
 window.changeCronMonth = function(m) {
   loadCronograma(currentClientId, m);
+};
+
+window.limparCronograma = async function() {
+  const mesLabel = cronMonth ? new Date(cronMonth+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'}) : '';
+  if (!confirm(`Limpar o cronograma de ${mesLabel}? Isso apaga o que foi salvo e volta para o padrão do mês.`)) return;
+  try {
+    await db.collection('cronograma').doc(currentClientId+'_'+cronMonth).delete();
+  } catch(e){}
+  toast('Cronograma limpo!');
+  loadCronograma(currentClientId, cronMonth);
 };
 
 function renderCronograma() {
