@@ -3731,9 +3731,8 @@ async function loadCronograma(clientId, targetMonth) {
   const taskRows = snap.docs.map(d=>d.data())
     .filter(t=>{
       if (targetMonth === curYM2) {
-        // mês atual: inclui pendentes de qualquer mês + concluídas do mês atual
-        if (t.due && !t.due.startsWith(curYM2) && (t.status||'pending')==='done') return false;
-        return true;
+        // mês atual: só tarefas com prazo no mês atual ou sem prazo
+        return !t.due || t.due.startsWith(curYM2);
       } else {
         // mês anterior: mostra tarefas com prazo naquele mês
         return t.due && t.due.startsWith(targetMonth);
