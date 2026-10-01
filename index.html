@@ -3688,16 +3688,24 @@ async function loadCronograma(clientId, targetMonth) {
   if (!targetMonth) targetMonth = curYM2;
   cronMonth = targetMonth;
 
-  // Busca docs novos (com client_id) e doc legado (sem month) em paralelo
-  const [allCronSnap, oldDoc] = await Promise.all([
-    db.collection('cronograma').where('client_id','==',clientId).get(),
-    db.collection('cronograma').doc(clientId).get()
+  // Gera lista dos últimos 12 meses para ler docs por ID diretamente (sem .where)
+  const monthCandidates = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
+    monthCandidates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  // Lê todos os docs por ID em paralelo (novo formato) + doc legado
+  const [legacyDoc, ...monthDocs] = await Promise.all([
+    db.collection('cronograma').doc(clientId).get(),
+    ...monthCandidates.map(m => db.collection('cronograma').doc(clientId+'_'+m).get())
   ]);
-  // Doc legado existe e ainda não foi migrado → trata como mês anterior (setembro)
-  const legacyRows = (oldDoc.exists && !oldDoc.data().month) ? (oldDoc.data().rows||[]) : null;
-  const savedMonths = allCronSnap.docs.map(d=>d.data().month).filter(Boolean).sort().reverse();
-  if (legacyRows && !savedMonths.includes(prevYM)) savedMonths.push(prevYM);
-  savedMonths.sort().reverse();
+  const cronByMonth = {};
+  monthDocs.forEach((d,i) => { if (d.exists) cronByMonth[monthCandidates[i]] = d.data().rows||[]; });
+  // Doc legado (sem month) → setembro
+  const legacyRows = (legacyDoc.exists && !legacyDoc.data().month) ? (legacyDoc.data().rows||[]) : null;
+  if (legacyRows && !cronByMonth[prevYM]) cronByMonth[prevYM] = legacyRows;
+  const savedMonths = Object.keys(cronByMonth).sort().reverse();
+  if (!savedMonths.includes(curYM2)) savedMonths.unshift(curYM2);
   if (!savedMonths.includes(curYM2)) savedMonths.unshift(curYM2);
   const monthLabels = m => {
     const [y,mo] = m.split('-');
@@ -3710,22 +3718,12 @@ async function loadCronograma(clientId, targetMonth) {
   const badge = document.getElementById('cron-month-badge');
   if (badge) badge.style.display = targetMonth !== curYM2 ? 'inline' : 'none';
 
-  // Carrega o doc salvo do mês escolhido
-  const saved = allCronSnap.docs.find(d=>d.data().month===targetMonth);
-  if (saved) {
-    cronRows = saved.data().rows || [];
-    if (!cronRows.length) cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
-    renderCronograma();
-    return;
+  // Carrega o mês escolhido
+  if (cronByMonth[targetMonth]) {
+    cronRows = cronByMonth[targetMonth].length ? cronByMonth[targetMonth] : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
+  } else {
+    cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
   }
-  // Fallback: doc legado (setembro) sem migração
-  if (legacyRows && targetMonth === prevYM) {
-    cronRows = legacyRows.length ? legacyRows : [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
-    renderCronograma();
-    return;
-  }
-  // Mês sem doc salvo → abre em branco
-  cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
   renderCronograma();
 }
 
