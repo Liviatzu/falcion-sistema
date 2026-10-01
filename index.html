@@ -324,6 +324,35 @@ tr:hover td{background:#F8FAFC}
 }
 
 @media print{#sidebar,#menu-toggle,.btn,.section-header button,.back-btn{display:none!important}#main{margin-left:0!important}}
+/* KANBAN */
+.kanban-board{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;align-items:start}
+.kanban-col{background:#F4F6FB;border-radius:12px;padding:0.8rem;min-height:200px}
+.kanban-col-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;padding-bottom:0.6rem;border-bottom:2px solid}
+.kanban-col-todo .kanban-col-header{border-color:#2980B9}
+.kanban-col-doing .kanban-col-header{border-color:#F39C12}
+.kanban-col-done .kanban-col-header{border-color:#27AE60}
+.kanban-col-title{font-weight:700;font-size:0.9rem}
+.kanban-col-todo .kanban-col-title{color:#2980B9}
+.kanban-col-doing .kanban-col-title{color:#F39C12}
+.kanban-col-done .kanban-col-title{color:#27AE60}
+.kanban-card{background:#fff;border-radius:10px;padding:0.75rem 0.85rem;margin-bottom:0.6rem;box-shadow:0 1px 4px rgba(0,0,0,0.08);border-left:4px solid #ccc;cursor:pointer;transition:box-shadow 0.15s}
+.kanban-card:hover{box-shadow:0 3px 10px rgba(0,0,0,0.13)}
+.kanban-card.late{border-left-color:#E74C3C;background:#FFF5F5}
+.kanban-card.prio-high{border-left-color:#E74C3C}
+.kanban-card.prio-medium{border-left-color:#F39C12}
+.kanban-card.prio-low{border-left-color:#27AE60}
+.kanban-card.late .kanban-card-title{color:#C0392B}
+.kanban-card-title{font-weight:700;font-size:0.88rem;color:var(--navy);margin-bottom:0.3rem;line-height:1.3}
+.kanban-card-desc{font-size:0.78rem;color:var(--gray);margin-bottom:0.4rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.kanban-card-footer{display:flex;align-items:center;justify-content:space-between;gap:0.3rem;flex-wrap:wrap}
+.kanban-card-due{font-size:0.72rem;font-weight:600}
+.kanban-card-actions{display:flex;gap:0.3rem}
+.kanban-move-btn{background:none;border:1.5px solid var(--gray-light);border-radius:6px;padding:0.15rem 0.4rem;cursor:pointer;font-size:0.75rem;color:var(--navy);transition:background 0.15s}
+.kanban-move-btn:hover{background:var(--gray-light)}
+.kanban-move-btn:disabled{opacity:0.3;cursor:not-allowed}
+.kanban-add-btn{width:100%;background:none;border:1.5px dashed #ccc;border-radius:8px;padding:0.5rem;cursor:pointer;color:var(--gray);font-size:0.82rem;margin-top:0.3rem;transition:all 0.15s}
+.kanban-add-btn:hover{border-color:var(--gold);color:var(--gold)}
+@media(max-width:768px){.kanban-board{grid-template-columns:1fr;gap:0.8rem}}
 </style>
 </head>
 <body>
@@ -383,6 +412,7 @@ tr:hover td{background:#F8FAFC}
       <div class="nav-item" onclick="showSection('calendar')"><span class="nav-icon">📅</span> Agenda</div>
       <div class="nav-item" onclick="showSection('report')"><span class="nav-icon">📋</span> Relatório</div>
       <div class="nav-item" onclick="showSection('metas')"><span class="nav-icon">🎯</span> Metas</div>
+      <div class="nav-item" onclick="showSection('kanban')"><span class="nav-icon">🗂️</span> Kanban</div>
       <div class="nav-item" id="nav-config" style="display:none" onclick="showSection('config')"><span class="nav-icon">⚙️</span> Configurações</div>
     </nav>
     <!-- SINO DE NOTIFICAÇÕES -->
@@ -752,6 +782,39 @@ tr:hover td{background:#F8FAFC}
       </div>
     </div>
 
+    <!-- KANBAN -->
+    <div class="section" id="sec-kanban">
+      <div class="section-header">
+        <div class="section-title">🗂️ Kanban</div>
+        <button class="btn btn-primary btn-sm" onclick="openKanbanModal()">+ Nova tarefa</button>
+      </div>
+      <div class="kanban-board">
+        <div class="kanban-col kanban-col-todo" id="kol-todo">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">📋 A Fazer</span>
+            <span id="kcount-todo" style="background:#2980B9;color:#fff;border-radius:12px;padding:0.1rem 0.5rem;font-size:0.72rem;font-weight:700">0</span>
+          </div>
+          <div id="kcards-todo"></div>
+          <button class="kanban-add-btn" onclick="openKanbanModal('todo')">+ Adicionar</button>
+        </div>
+        <div class="kanban-col kanban-col-doing" id="kol-doing">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">⚡ Fazendo</span>
+            <span id="kcount-doing" style="background:#F39C12;color:#fff;border-radius:12px;padding:0.1rem 0.5rem;font-size:0.72rem;font-weight:700">0</span>
+          </div>
+          <div id="kcards-doing"></div>
+          <button class="kanban-add-btn" onclick="openKanbanModal('doing')">+ Adicionar</button>
+        </div>
+        <div class="kanban-col kanban-col-done" id="kol-done">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">✅ Concluído</span>
+            <span id="kcount-done" style="background:#27AE60;color:#fff;border-radius:12px;padding:0.1rem 0.5rem;font-size:0.72rem;font-weight:700">0</span>
+          </div>
+          <div id="kcards-done"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- CONFIGURAÇÕES (master only) -->
     <div class="section" id="sec-config">
       <div class="section-header">
@@ -1045,6 +1108,61 @@ tr:hover td{background:#F8FAFC}
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">
       <button class="btn btn-ghost" onclick="closeModal('modal-subtask')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveSubtask()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- KANBAN CARD -->
+<div class="modal-overlay" id="modal-kanban-card">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-kanban-title">📋 Nova Tarefa</div>
+      <button class="modal-close" onclick="closeModal('modal-kanban-card')">✕</button>
+    </div>
+    <input type="hidden" id="kc-id">
+    <input type="hidden" id="kc-status-init">
+    <div class="form-group"><label>Título *</label>
+      <input type="text" id="kc-title" placeholder="O que precisa ser feito?">
+    </div>
+    <div class="form-group"><label>Descrição</label>
+      <textarea id="kc-desc" rows="2" placeholder="Detalhes (opcional)..."></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Prazo</label>
+        <input type="date" id="kc-due">
+      </div>
+      <div class="form-group"><label>Prioridade</label>
+        <select id="kc-prio">
+          <option value="medium">🟡 Média</option>
+          <option value="high">🔴 Alta</option>
+          <option value="low">🟢 Baixa</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem">
+      <button id="kc-delete-btn" class="btn btn-ghost btn-sm" style="color:var(--danger);display:none" onclick="deleteKanbanCard()">🗑 Excluir</button>
+      <div style="display:flex;gap:0.5rem;margin-left:auto">
+        <button class="btn btn-ghost" onclick="closeModal('modal-kanban-card')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveKanbanCard()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KANBAN REAGENDAR -->
+<div class="modal-overlay" id="modal-kanban-late">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header">
+      <div class="modal-title">🔴 Tarefa Atrasada</div>
+      <button class="modal-close" onclick="closeModal('modal-kanban-late')">✕</button>
+    </div>
+    <p style="color:#555;font-size:0.9rem;margin-bottom:1rem">Esta tarefa está com o prazo vencido. Para avançá-la é necessário definir um novo prazo.</p>
+    <div class="form-group"><label>Novo prazo *</label>
+      <input type="date" id="kc-new-due">
+    </div>
+    <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-kanban-late')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmReschedule()">Reagendar e Avançar</button>
     </div>
   </div>
 </div>
@@ -1437,6 +1555,7 @@ function showSection(name) {
   if (name==='report') initReport();
   if (name==='config') { renderConfigConsultores(); renderConfigUsers(); }
   if (name==='metas') initMetas();
+  if (name==='kanban') loadKanban();
 }
 
 function showTab(name) {
@@ -4417,6 +4536,171 @@ async function removeUserLogin(id, nome) {
 // INIT
 // ============================================================
 window.addEventListener('load', initApp);
+
+// ============================================================
+// KANBAN
+// ============================================================
+let kanbanCards = [];
+let kanbanPendingMove = null; // { id, newStatus } — aguardando reagendamento
+
+async function loadKanban() {
+  const snap = await db.collection('kanban_cards')
+    .where('owner', '==', session.name).get();
+  kanbanCards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderKanban();
+}
+
+function isLate(card) {
+  if (!card.due || card.status === 'done') return false;
+  return card.due < new Date().toISOString().slice(0, 10);
+}
+
+function renderKanban() {
+  const today = new Date().toISOString().slice(0, 10);
+  const cols = { todo: [], doing: [], done: [] };
+  kanbanCards.forEach(c => {
+    const st = c.status || 'todo';
+    if (cols[st]) cols[st].push(c);
+  });
+  // ordenar: atrasados primeiro, depois por prazo
+  ['todo','doing'].forEach(st => {
+    cols[st].sort((a,b) => {
+      const la = isLate(a) ? 0 : 1, lb = isLate(b) ? 0 : 1;
+      if (la !== lb) return la - lb;
+      return (a.due||'9999').localeCompare(b.due||'9999');
+    });
+  });
+  cols.done.sort((a,b) => (b.due||'').localeCompare(a.due||''));
+
+  const prioColor = { high:'#E74C3C', medium:'#F39C12', low:'#27AE60' };
+  const prioLabel = { high:'🔴 Alta', medium:'🟡 Média', low:'🟢 Baixa' };
+  const fmtDue = d => d ? new Date(d+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '';
+
+  ['todo','doing','done'].forEach(st => {
+    const el = document.getElementById('kcards-'+st);
+    const count = document.getElementById('kcount-'+st);
+    if (count) count.textContent = cols[st].length;
+    if (!el) return;
+    el.innerHTML = cols[st].map(c => {
+      const late = isLate(c);
+      const dueColor = late ? '#E74C3C' : (c.due && c.due <= today ? '#F39C12' : '#555');
+      const dueText = late ? `🔴 Atrasado (${fmtDue(c.due)})` : (c.due ? `📅 ${fmtDue(c.due)}` : '');
+      const prevBtn = st === 'doing'
+        ? `<button class="kanban-move-btn" onclick="event.stopPropagation();moveKanban('${c.id}','todo')" ${late?'disabled title="Atrasado: não pode voltar"':''}>←</button>` : '';
+      const nextBtn = st !== 'done'
+        ? `<button class="kanban-move-btn" style="background:${st==='todo'?'#EBF5FB':'#EAFAF1'}" onclick="event.stopPropagation();moveKanban('${c.id}','${st==='todo'?'doing':'done'}')">${st==='todo'?'→ Fazendo':'→ Feito'}</button>` : '';
+      return `
+      <div class="kanban-card${late?' late':''} prio-${c.prio||'medium'}" onclick="editKanbanCard('${c.id}')">
+        <div class="kanban-card-title">${c.title}</div>
+        ${c.desc ? `<div class="kanban-card-desc">${c.desc}</div>` : ''}
+        <div class="kanban-card-footer">
+          <span class="kanban-card-due" style="color:${dueColor}">${dueText}</span>
+          <div class="kanban-card-actions">${prevBtn}${nextBtn}</div>
+        </div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function openKanbanModal(statusInit) {
+  document.getElementById('kc-id').value = '';
+  document.getElementById('kc-title').value = '';
+  document.getElementById('kc-desc').value = '';
+  document.getElementById('kc-due').value = '';
+  document.getElementById('kc-prio').value = 'medium';
+  document.getElementById('kc-status-init').value = statusInit || 'todo';
+  document.getElementById('modal-kanban-title').textContent = '📋 Nova Tarefa';
+  document.getElementById('kc-delete-btn').style.display = 'none';
+  openModal('modal-kanban-card');
+}
+
+function editKanbanCard(id) {
+  const c = kanbanCards.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('kc-id').value = id;
+  document.getElementById('kc-title').value = c.title || '';
+  document.getElementById('kc-desc').value = c.desc || '';
+  document.getElementById('kc-due').value = c.due || '';
+  document.getElementById('kc-prio').value = c.prio || 'medium';
+  document.getElementById('kc-status-init').value = c.status || 'todo';
+  document.getElementById('modal-kanban-title').textContent = '✏️ Editar Tarefa';
+  document.getElementById('kc-delete-btn').style.display = 'inline-block';
+  openModal('modal-kanban-card');
+}
+
+window.saveKanbanCard = async function() {
+  const id = document.getElementById('kc-id').value;
+  const title = document.getElementById('kc-title').value.trim();
+  if (!title) { toast('Digite o título da tarefa', 'error'); return; }
+  const data = {
+    title,
+    desc: document.getElementById('kc-desc').value.trim(),
+    due: document.getElementById('kc-due').value,
+    prio: document.getElementById('kc-prio').value,
+    owner: session.name,
+    status: document.getElementById('kc-status-init').value || 'todo'
+  };
+  if (id) {
+    await db.collection('kanban_cards').doc(id).update(data);
+    const idx = kanbanCards.findIndex(x => x.id === id);
+    if (idx >= 0) kanbanCards[idx] = { ...kanbanCards[idx], ...data };
+  } else {
+    data.created_at = firebase.firestore.FieldValue.serverTimestamp();
+    const ref = await db.collection('kanban_cards').add(data);
+    kanbanCards.push({ id: ref.id, ...data });
+  }
+  closeModal('modal-kanban-card');
+  renderKanban();
+  toast(id ? 'Tarefa atualizada!' : 'Tarefa criada!');
+};
+
+window.deleteKanbanCard = async function() {
+  const id = document.getElementById('kc-id').value;
+  if (!id || !confirm('Excluir esta tarefa?')) return;
+  await db.collection('kanban_cards').doc(id).delete();
+  kanbanCards = kanbanCards.filter(x => x.id !== id);
+  closeModal('modal-kanban-card');
+  renderKanban();
+  toast('Tarefa excluída.');
+};
+
+window.moveKanban = async function(id, newStatus) {
+  const c = kanbanCards.find(x => x.id === id);
+  if (!c) return;
+  // bloquear voltar se atrasado
+  if (isLate(c) && newStatus === 'todo') {
+    toast('Tarefa atrasada não pode voltar para A Fazer.', 'error'); return;
+  }
+  // avançar card atrasado → exige novo prazo
+  if (isLate(c) && newStatus !== c.status) {
+    kanbanPendingMove = { id, newStatus };
+    document.getElementById('kc-new-due').value = '';
+    openModal('modal-kanban-late');
+    return;
+  }
+  await _applyKanbanMove(id, newStatus, null);
+};
+
+window.confirmReschedule = async function() {
+  const newDue = document.getElementById('kc-new-due').value;
+  if (!newDue) { toast('Defina o novo prazo', 'error'); return; }
+  if (!kanbanPendingMove) return;
+  await _applyKanbanMove(kanbanPendingMove.id, kanbanPendingMove.newStatus, newDue);
+  closeModal('modal-kanban-late');
+  kanbanPendingMove = null;
+};
+
+async function _applyKanbanMove(id, newStatus, newDue) {
+  const update = { status: newStatus };
+  if (newDue) update.due = newDue;
+  if (newStatus === 'done') update.completed_at = firebase.firestore.FieldValue.serverTimestamp();
+  await db.collection('kanban_cards').doc(id).update(update);
+  const c = kanbanCards.find(x => x.id === id);
+  if (c) { c.status = newStatus; if (newDue) c.due = newDue; }
+  renderKanban();
+  const labels = { todo:'A Fazer', doing:'Fazendo', done:'Concluído ✅' };
+  toast(`Movido para ${labels[newStatus]}`);
+}
 </script>
 
 <!-- SERVICE WORKER -->
