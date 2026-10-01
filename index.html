@@ -2092,8 +2092,11 @@ function renderClients(list) {
     return;
   }
   grid.innerHTML = list.map(c => {
-    const inicial = parseHHMM(c.initial_hours)||0;
-    const usado   = clientMonthUsed[c.id]||0;
+    const sepU   = clientSepUsed[c.id]||0;
+    const sepIni = parseHHMM(clientSepInitial[c.id]||c.initial_hours||'0:00');
+    const hasSep = sepU > 0 || !!clientSepInitial[c.id];
+    const inicial = hasSep ? sepIni : (parseHHMM(c.initial_hours)||0);
+    const usado   = hasSep ? sepU : (clientMonthUsed[c.id]||0);
     const saldo   = Math.round((inicial - usado)*60)/60;
     const neg     = saldo < 0;
     const ini     = clientInitials(c.name);
@@ -2131,21 +2134,6 @@ function renderClients(list) {
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Usado no mês</span>
         <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
       </div>
-      ${(()=>{
-        const sepU = clientSepUsed[c.id]||0;
-        const sepIniStr = clientSepInitial[c.id]||c.initial_hours||'0:00';
-        const sepIni = parseHHMM(sepIniStr);
-        if (!sepU && !clientSepInitial[c.id]) return '';
-        const sepSaldo = sepIni - sepU;
-        const sepNeg = sepSaldo < 0;
-        return `<div style="margin-top:0.35rem;padding:0.4rem 0.5rem;background:#F0F4FF;border-radius:7px;border-left:3px solid #3498DB">
-          <div style="font-size:0.65rem;color:#3498DB;font-weight:700;margin-bottom:0.2rem;text-transform:uppercase;letter-spacing:0.4px">Set/26</div>
-          <div style="display:flex;justify-content:space-between">
-            <span style="font-size:0.68rem;color:#555">Usado: <b>${fmtHHMM(sepU)}</b></span>
-            <span style="font-size:0.68rem;font-weight:700;color:${sepNeg?'#E74C3C':'#27AE60'}">Saldo: ${fmtHHMM(sepSaldo)}</span>
-          </div>
-        </div>`;
-      })()}
       <div style="display:flex;gap:0.4rem;align-items:center">
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. Contratuais</span>
         <input type="text" value="${c.monthly_quota_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','monthly_quota_hours',this.value)" placeholder="0:00">
