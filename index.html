@@ -2108,6 +2108,10 @@ function renderClients(list) {
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Iniciais</span>
         <input type="text" value="${c.initial_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','initial_hours',this.value)" placeholder="0:00">
       </div>
+      <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.25rem">
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Usado no mês</span>
+        <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
+      </div>
       <div style="display:flex;gap:0.4rem;align-items:center">
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. Contratuais</span>
         <input type="text" value="${c.monthly_quota_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','monthly_quota_hours',this.value)" placeholder="0:00">
