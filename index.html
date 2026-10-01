@@ -2617,7 +2617,7 @@ async function abrirHistorico() {
     <div style="border:1.5px solid var(--gray-light);border-radius:10px;padding:1rem 1.2rem;margin-bottom:0.7rem">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
         <div style="font-weight:700;font-size:0.95rem;color:var(--navy)">📅 ${h.month_label||h.month}</div>
-        ${i===0 && session?.role==='master' ? `<button onclick="desfazerF5('${h.id}','${h.initial_hours}')" style="background:#FFF3E0;color:#E65100;border:1.5px solid #FFCC80;border-radius:8px;padding:0.25rem 0.6rem;font-size:0.75rem;font-weight:700;cursor:pointer">↩️ Desfazer F5</button>` : ''}
+        ${i===0 && session?.role==='master' ? `<button onclick="desfazerF5('${h.id}','${h.initial_hours}','${h.month}')" style="background:#FFF3E0;color:#E65100;border:1.5px solid #FFCC80;border-radius:8px;padding:0.25rem 0.6rem;font-size:0.75rem;font-weight:700;cursor:pointer">↩️ Desfazer F5</button>` : ''}
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;text-align:center">
         <div style="background:var(--gray-light);border-radius:8px;padding:0.5rem">
@@ -3961,8 +3961,39 @@ async function virarMes() {
   toast(`✅ Mês virado! Histórico de ${monthLabel} salvo. Próximo mês inicia com ${novoInicial}`);
 }
 
-window.desfazerF5 = async function(historicoId, initialHoursOriginal) {
-  if (!confirm(`Desfazer o último F5?\n\nIsso vai restaurar as horas iniciais para ${initialHoursOriginal} e remover o registro do histórico.\n\nEssa ação não pode ser desfeita.`)) return;
+window.desfazerF5 = async function(historicoId, initialHoursOriginal, month) {
+  // Busca visitas do mês fechado para mostrar preview completo
+  const vSnap = await db.collection('visits').where('client_id','==',currentClientId).get();
+  const visitsDoMes = vSnap.docs.map(d=>d.data()).filter(v=>v.date&&v.date.startsWith(month));
+  const usadoNoMes = visitsDoMes.reduce((s,v)=>s+parseHHMM(v.hours||'0'),0);
+  const saldoResultante = parseHHMM(initialHoursOriginal) - usadoNoMes;
+  const mesLabel = new Date(month+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+
+  // monta linhas de visitas
+  const linhasVisitas = visitsDoMes
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+    .map(v=>`  • ${new Date(v.date+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} — ${v.hours}h — ${v.description||v.created_by||''}`)
+    .join('\n') || '  (nenhuma visita registrada)';
+
+  const preview = [
+    `↩️ REVERTER F5 — ${currentClientData?.name||''}`,
+    ``,
+    `📅 Mês fechado: ${mesLabel}`,
+    ``,
+    `Horas iniciais que serão restauradas: ${initialHoursOriginal}`,
+    ``,
+    `Visitas registradas no mês (${visitsDoMes.length}):`,
+    linhasVisitas,
+    ``,
+    `Total usado no mês: ${fmtHHMM(usadoNoMes)}`,
+    `─────────────────────────────`,
+    `Saldo resultante após reversão: ${fmtHHMM(saldoResultante)}${saldoResultante<0?' ⚠️ NEGATIVO':''}`,
+    ``,
+    `Confirmar reversão?`
+  ].join('\n');
+
+  if (!confirm(preview)) return;
+
   await db.collection('historico_mensal').doc(historicoId).delete();
   await db.collection('clients').doc(currentClientId).update({ initial_hours: initialHoursOriginal });
   currentClientData.initial_hours = initialHoursOriginal;
@@ -3970,7 +4001,7 @@ window.desfazerF5 = async function(historicoId, initialHoursOriginal) {
   if (idx >= 0) allClients[idx].initial_hours = initialHoursOriginal;
   closeModal('modal-historico');
   if (currentClientId) loadClientDashboard(currentClientId);
-  toast('↩️ F5 desfeito! Horas iniciais restauradas para ' + initialHoursOriginal);
+  toast('↩️ F5 desfeito! Horas restauradas para ' + initialHoursOriginal + ' · Saldo: ' + fmtHHMM(saldoResultante));
 };
 
 // ============================================================
