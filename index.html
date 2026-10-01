@@ -3706,6 +3706,7 @@ async function loadCronograma(clientId, targetMonth) {
   if (legacyRows && !cronByMonth[prevYM]) cronByMonth[prevYM] = legacyRows;
   const savedMonths = Object.keys(cronByMonth).sort().reverse();
   if (!savedMonths.includes(curYM2)) savedMonths.unshift(curYM2);
+  if (!savedMonths.includes(prevYM)) savedMonths.splice(1, 0, prevYM); // sempre mostra mês anterior
   if (!savedMonths.includes(curYM2)) savedMonths.unshift(curYM2);
   const monthLabels = m => {
     const [y,mo] = m.split('-');
@@ -3724,19 +3725,19 @@ async function loadCronograma(clientId, targetMonth) {
     renderCronograma();
     return;
   }
-  // Mês passado sem doc salvo → avisa que não há histórico
-  if (targetMonth !== curYM2) {
-    cronRows = [];
-    document.getElementById('cronograma-editor').innerHTML = '<p style="color:var(--gray);padding:1rem;font-size:0.85rem">Nenhum cronograma salvo para este mês.</p>';
-    return;
-  }
-  // Mês atual sem doc salvo → gera a partir das tarefas (comportamento original)
+  // Sem doc salvo → gera das tarefas do mês selecionado
   const statusMap = { pending:'A Fazer', in_progress:'Em Andamento', done:'Concluído' };
   const snap = await db.collection('tasks').where('client_id','==',clientId).get();
   const taskRows = snap.docs.map(d=>d.data())
     .filter(t=>{
-      if (t.due && !t.due.startsWith(curYM2) && (t.status||'pending')==='done') return false;
-      return true;
+      if (targetMonth === curYM2) {
+        // mês atual: inclui pendentes de qualquer mês + concluídas do mês atual
+        if (t.due && !t.due.startsWith(curYM2) && (t.status||'pending')==='done') return false;
+        return true;
+      } else {
+        // mês anterior: mostra tarefas com prazo naquele mês
+        return t.due && t.due.startsWith(targetMonth);
+      }
     })
     .sort((a,b)=>(a.title||'').localeCompare(b.title||''))
     .map(t=>({
