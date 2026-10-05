@@ -4030,8 +4030,12 @@ async function virarMes() {
 
   const initial = parseHHMM(currentClientData.initial_hours || '0');
   const quota  = parseHHMM(currentClientData.monthly_quota_hours || '0');
-  const thisMonthVisits = allVisitsCache.filter(v => v.date && v.date.startsWith(ym));
-  const used = thisMonthVisits.reduce((s,v) => s + parseHHMM(v.hours), 0);
+  // Busca visitas direto do Firestore para garantir dados corretos
+  const vSnap = await db.collection('visits')
+    .where('client_id','==',currentClientId).get();
+  const thisMonthVisits = vSnap.docs.map(d=>d.data())
+    .filter(v => v.date && v.date.startsWith(ym));
+  const used = thisMonthVisits.reduce((s,v) => s + parseHHMM(v.hours||'0'), 0);
   const saldo = initial - used;
   // Novo inicial = horas contratuais + saldo (positivo soma, negativo debita)
   const novoInicialDecimal = quota + saldo;
