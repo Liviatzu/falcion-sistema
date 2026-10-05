@@ -4305,11 +4305,11 @@ async function loadReport() {
   // Busca clientes e visitas do período
   const [cSnap, vSnap] = await Promise.all([
     db.collection('clients').where('status','==','active').get(),
-    db.collection('visits').where('date','>=',monthStart).where('date','<=',monthEnd).get()
+    db.collection('visits').get()
   ]);
 
   const clients = cSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
-  const visits  = vSnap.docs.map(d=>d.data());
+  const visits  = vSnap.docs.map(d=>d.data()).filter(v=>v.date && v.date >= monthStart && v.date <= monthEnd);
 
   // Totais
   let totalUsed = 0, totalInitial = 0;
