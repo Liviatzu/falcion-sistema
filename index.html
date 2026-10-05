@@ -2098,11 +2098,8 @@ function renderClients(list) {
     return;
   }
   grid.innerHTML = list.map(c => {
-    const sepU   = clientSepUsed[c.id]||0;
-    const sepIni = parseHHMM(clientSepInitial[c.id]||c.initial_hours||'0:00');
-    const hasSep = sepU > 0 || !!clientSepInitial[c.id];
-    const inicial = hasSep ? sepIni : (parseHHMM(c.initial_hours)||0);
-    const usado   = hasSep ? sepU : (clientMonthUsed[c.id]||0);
+    const inicial = parseHHMM(c.initial_hours)||0;
+    const usado   = clientMonthUsed[c.id]||0;
     const saldo   = Math.round((inicial - usado)*60)/60;
     const neg     = saldo < 0;
     const ini     = clientInitials(c.name);
