@@ -1244,7 +1244,11 @@ tr:hover td{background:#F8FAFC}
     </div>
     <p id="mpc-subtitle" style="font-size:0.82rem;color:var(--gray);margin-bottom:1rem"></p>
     <div id="mpc-steps"></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:1.2rem;gap:0.5rem">
+    <div style="display:flex;gap:0.5rem;margin-top:0.8rem;padding-top:0.8rem;border-top:1px dashed var(--gray-light)">
+      <input type="text" id="mpc-nova-etapa" placeholder="+ Adicionar etapa personalizada..." style="flex:1;padding:0.4rem 0.7rem;border:1.5px solid var(--gray-light);border-radius:8px;font-size:0.85rem" onkeydown="if(event.key==='Enter'){event.preventDefault();window.addEtapaChecklist()}">
+      <button class="btn btn-ghost btn-sm" onclick="window.addEtapaChecklist()">+</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:1rem;gap:0.5rem">
       <button class="btn btn-ghost" onclick="closeModal('modal-processo-checklist')">Fechar</button>
       <button class="btn btn-primary" onclick="window.saveChecklist()">Salvar</button>
     </div>
@@ -5151,37 +5155,74 @@ window.openClienteProcessos = function(clientId, clientName) {
   openModal('modal-processo-detalhe');
 };
 
+let _checklistCustomSteps = []; // etapas extras deste cliente neste processo
+
+function renderChecklistSteps(etapas, stepsDone, customSteps) {
+  const el = document.getElementById('mpc-steps');
+  const allSteps = [
+    ...etapas.map(e => ({ ...e, custom: false })),
+    ...customSteps.map(e => ({ ...e, custom: true }))
+  ];
+  if (!allSteps.length) { el.innerHTML = '<p style="color:var(--gray);font-size:0.85rem">Nenhuma etapa. Adicione abaixo.</p>'; return; }
+  el.innerHTML = allSteps.map((e, i) => {
+    const checked = stepsDone.includes(e.id);
+    const removeBtn = e.custom
+      ? `<button onclick="window.removeEtapaChecklist('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:0.9rem;padding:0 0.2rem;flex-shrink:0" title="Remover">✕</button>`
+      : '';
+    return `<label style="display:flex;align-items:center;gap:0.6rem;padding:0.65rem 0.5rem;border-bottom:1px solid var(--gray-light);cursor:pointer;border-radius:6px;transition:background 0.1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+      <input type="checkbox" id="chk-${e.id}" ${checked?'checked':''} style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
+      <span style="font-size:0.88rem;color:${e.custom?'var(--gold)':'var(--navy)'};flex:1">${i+1}. ${e.label}${e.custom?' <span style="font-size:0.7rem;color:var(--gold)">(personalizado)</span>':''}</span>
+      ${removeBtn}
+    </label>`;
+  }).join('');
+}
+
 window.openChecklist = async function(processoId, clientId, clientName) {
   checklistClienteId = clientId;
   const proc = processosCache.find(x => x.id === processoId);
   if (!proc) return;
   document.getElementById('mpc-title').textContent = (proc.icone||'🔄') + ' ' + proc.nome;
   document.getElementById('mpc-subtitle').textContent = '📍 ' + clientName;
+  document.getElementById('mpc-nova-etapa').value = '';
 
-  // Busca progresso salvo
   const docId = processoId + '_' + clientId;
   const snap = await db.collection('processo_progresso').doc(docId).get();
   const stepsDone = snap.exists ? (snap.data().steps_done || []) : [];
-
-  const etapas = proc.etapas || [];
-  const el = document.getElementById('mpc-steps');
-  el.innerHTML = etapas.map((e,i) => {
-    const checked = stepsDone.includes(e.id);
-    return `<label style="display:flex;align-items:center;gap:0.75rem;padding:0.7rem 0.5rem;border-bottom:1px solid var(--gray-light);cursor:pointer;border-radius:6px;transition:background 0.1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-      <input type="checkbox" id="chk-${e.id}" ${checked?'checked':''} style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
-      <span style="font-size:0.9rem;color:var(--navy)">${i+1}. ${e.label}</span>
-    </label>`;
-  }).join('') || '<p style="color:var(--gray);font-size:0.85rem">Nenhuma etapa cadastrada.</p>';
+  _checklistCustomSteps = snap.exists ? (snap.data().custom_steps || []) : [];
 
   window._checklistProcId = processoId;
+  renderChecklistSteps(proc.etapas || [], stepsDone, _checklistCustomSteps);
   openModal('modal-processo-checklist');
+};
+
+window.addEtapaChecklist = function() {
+  const inp = document.getElementById('mpc-nova-etapa');
+  const val = (inp.value || '').trim();
+  if (!val) return;
+  _checklistCustomSteps.push({ id: 'c_' + Date.now(), label: val });
+  inp.value = '';
+  const proc = processosCache.find(x => x.id === window._checklistProcId);
+  const currentDone = (proc?.etapas||[]).concat(_checklistCustomSteps).filter(e => {
+    const el = document.getElementById('chk-'+e.id); return el && el.checked;
+  }).map(e => e.id);
+  renderChecklistSteps(proc?.etapas||[], currentDone, _checklistCustomSteps);
+  inp.focus();
+};
+
+window.removeEtapaChecklist = function(id) {
+  _checklistCustomSteps = _checklistCustomSteps.filter(e => e.id !== id);
+  const proc = processosCache.find(x => x.id === window._checklistProcId);
+  const currentDone = (proc?.etapas||[]).concat(_checklistCustomSteps).filter(e => {
+    const el = document.getElementById('chk-'+e.id); return el && el.checked;
+  }).map(e => e.id);
+  renderChecklistSteps(proc?.etapas||[], currentDone, _checklistCustomSteps);
 };
 
 window.saveChecklist = async function() {
   const proc = processosCache.find(x => x.id === window._checklistProcId);
   if (!proc || !checklistClienteId) return;
-  const etapas = proc.etapas || [];
-  const stepsDone = etapas.filter(e => {
+  const allSteps = [...(proc.etapas||[]), ..._checklistCustomSteps];
+  const stepsDone = allSteps.filter(e => {
     const el = document.getElementById('chk-'+e.id);
     return el && el.checked;
   }).map(e => e.id);
@@ -5190,15 +5231,13 @@ window.saveChecklist = async function() {
     processo_id: window._checklistProcId,
     client_id: checklistClienteId,
     steps_done: stepsDone,
+    custom_steps: _checklistCustomSteps,
     updated_by: session ? session.name : '—',
     updated_at: firebase.firestore.FieldValue.serverTimestamp()
   });
-  // Atualiza cache local
-  const docId2 = window._checklistProcId + '_' + checklistClienteId;
-  procProgressoCache[docId2] = { processo_id: window._checklistProcId, client_id: checklistClienteId, steps_done: stepsDone };
+  procProgressoCache[docId] = { processo_id: window._checklistProcId, client_id: checklistClienteId, steps_done: stepsDone, custom_steps: _checklistCustomSteps };
   closeModal('modal-processo-checklist');
   toast('Progresso salvo!');
-  // Recarrega visão do cliente no modal de detalhe
   const c = procClientesCache.find(x => x.id === checklistClienteId);
   if (c) window.openClienteProcessos(c.id, c.name);
 };
