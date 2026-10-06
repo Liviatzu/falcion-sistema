@@ -1239,7 +1239,7 @@ tr:hover td{background:#F8FAFC}
 <div class="modal-overlay" id="modal-processo-checklist">
   <div class="modal-box" style="max-width:520px">
     <div class="modal-header">
-      <div class="modal-title" id="mpc-title">Checklist</div>
+      <div class="modal-title" id="mpc-title" onclick="window.editProcNome(this)" title="Clique para editar o nome" style="cursor:pointer" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">Checklist</div>
       <button class="modal-close" onclick="closeModal('modal-processo-checklist')">✕</button>
     </div>
     <p id="mpc-subtitle" style="font-size:0.82rem;color:var(--gray);margin-bottom:1rem"></p>
@@ -5166,14 +5166,15 @@ function renderChecklistSteps(etapas, stepsDone, customSteps) {
   if (!allSteps.length) { el.innerHTML = '<p style="color:var(--gray);font-size:0.85rem">Nenhuma etapa. Adicione abaixo.</p>'; return; }
   el.innerHTML = allSteps.map((e, i) => {
     const checked = stepsDone.includes(e.id);
-    const removeBtn = e.custom
-      ? `<button onclick="window.removeEtapaChecklist('${e.id}')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:0.9rem;padding:0 0.2rem;flex-shrink:0" title="Remover">✕</button>`
-      : '';
-    return `<label style="display:flex;align-items:center;gap:0.6rem;padding:0.65rem 0.5rem;border-bottom:1px solid var(--gray-light);cursor:pointer;border-radius:6px;transition:background 0.1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-      <input type="checkbox" id="chk-${e.id}" ${checked?'checked':''} style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
-      <span style="font-size:0.88rem;color:${e.custom?'var(--gold)':'var(--navy)'};flex:1">${i+1}. ${e.label}${e.custom?' <span style="font-size:0.7rem;color:var(--gold)">(personalizado)</span>':''}</span>
-      ${removeBtn}
-    </label>`;
+    return `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.5rem;border-bottom:1px solid var(--gray-light);border-radius:6px">
+      <input type="checkbox" id="chk-${e.id}" ${checked?'checked':''} style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0" onclick="event.stopPropagation()">
+      <input type="text" value="${(e.label||'').replace(/"/g,'&quot;')}" data-stepid="${e.id}" data-custom="${e.custom}"
+        style="flex:1;border:none;background:transparent;font-size:0.88rem;color:${e.custom?'var(--gold)':'var(--navy)'};padding:0.15rem 0.3rem;border-radius:5px;cursor:text;outline:none"
+        onfocus="this.style.background='#f0f4ff';this.style.border='1.5px solid var(--gold)'"
+        onblur="this.style.background='transparent';this.style.border='none';window.saveEtapaLabel(this)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+      <button onclick="window.removeEtapaChecklist('${e.id}','${e.custom}')" style="background:none;border:none;cursor:pointer;color:#ccc;font-size:0.85rem;padding:0 0.15rem;flex-shrink:0" title="Remover" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='#ccc'">✕</button>
+    </div>`;
   }).join('');
 }
 
@@ -5195,6 +5196,45 @@ window.openChecklist = async function(processoId, clientId, clientName) {
   openModal('modal-processo-checklist');
 };
 
+// Salva edição de label de etapa (template ou custom)
+window.saveEtapaLabel = async function(input) {
+  const id = input.dataset.stepid;
+  const isCustom = input.dataset.custom === 'true';
+  const newLabel = input.value.trim();
+  if (!newLabel) { input.value = input.defaultValue; return; }
+  if (isCustom) {
+    const step = _checklistCustomSteps.find(e => e.id === id);
+    if (step) step.label = newLabel;
+  } else {
+    // Atualiza no template do processo
+    const proc = processosCache.find(x => x.id === window._checklistProcId);
+    if (!proc) return;
+    const step = (proc.etapas||[]).find(e => e.id === id);
+    if (step) {
+      step.label = newLabel;
+      await db.collection('processos').doc(proc.id).update({ etapas: proc.etapas });
+    }
+  }
+};
+
+// Editar nome do processo inline no título do modal
+window.editProcNome = function(el) {
+  const proc = processosCache.find(x => x.id === window._checklistProcId);
+  if (!proc) return;
+  const icone = proc.icone || '🔄';
+  el.innerHTML = `<span>${icone}</span> <input id="proc-nome-inline" type="text" value="${proc.nome}" style="border:none;border-bottom:2px solid var(--gold);background:transparent;font-size:1rem;font-weight:700;color:var(--navy);outline:none;width:200px" onkeydown="if(event.key==='Enter')this.blur()" onblur="window.saveProcNomeInline(this)">`;
+  setTimeout(() => document.getElementById('proc-nome-inline')?.focus(), 50);
+};
+window.saveProcNomeInline = async function(input) {
+  const val = input.value.trim();
+  const proc = processosCache.find(x => x.id === window._checklistProcId);
+  if (!proc || !val) { document.getElementById('mpc-title').textContent = (proc?.icone||'🔄') + ' ' + (proc?.nome||''); return; }
+  proc.nome = val;
+  await db.collection('processos').doc(proc.id).update({ nome: val });
+  document.getElementById('mpc-title').textContent = (proc.icone||'🔄') + ' ' + val;
+  toast('Nome atualizado!');
+};
+
 window.addEtapaChecklist = function() {
   const inp = document.getElementById('mpc-nova-etapa');
   const val = (inp.value || '').trim();
@@ -5209,10 +5249,18 @@ window.addEtapaChecklist = function() {
   inp.focus();
 };
 
-window.removeEtapaChecklist = function(id) {
-  _checklistCustomSteps = _checklistCustomSteps.filter(e => e.id !== id);
+window.removeEtapaChecklist = async function(id, isCustom) {
   const proc = processosCache.find(x => x.id === window._checklistProcId);
-  const currentDone = (proc?.etapas||[]).concat(_checklistCustomSteps).filter(e => {
+  if (isCustom === 'true' || isCustom === true) {
+    _checklistCustomSteps = _checklistCustomSteps.filter(e => e.id !== id);
+  } else {
+    // Remove do template
+    if (proc) {
+      proc.etapas = (proc.etapas||[]).filter(e => e.id !== id);
+      await db.collection('processos').doc(proc.id).update({ etapas: proc.etapas });
+    }
+  }
+  const currentDone = [...(proc?.etapas||[]), ..._checklistCustomSteps].filter(e => {
     const el = document.getElementById('chk-'+e.id); return el && el.checked;
   }).map(e => e.id);
   renderChecklistSteps(proc?.etapas||[], currentDone, _checklistCustomSteps);
