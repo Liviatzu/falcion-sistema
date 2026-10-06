@@ -413,6 +413,7 @@ tr:hover td{background:#F8FAFC}
       <div class="nav-item" onclick="showSection('report')"><span class="nav-icon">📋</span> Relatório</div>
       <div class="nav-item" onclick="showSection('metas')"><span class="nav-icon">🎯</span> Metas</div>
       <div class="nav-item" onclick="showSection('kanban')"><span class="nav-icon">🗂️</span> Kanban</div>
+      <div class="nav-item" onclick="showSection('processos')"><span class="nav-icon">🔄</span> Processos</div>
       <div class="nav-item" id="nav-config" style="display:none" onclick="showSection('config')"><span class="nav-icon">⚙️</span> Configurações</div>
     </nav>
     <!-- SINO DE NOTIFICAÇÕES -->
@@ -822,6 +823,15 @@ tr:hover td{background:#F8FAFC}
     </div>
 
     <!-- CONFIGURAÇÕES (master only) -->
+    <!-- PROCESSOS -->
+    <div class="section" id="sec-processos">
+      <div class="section-header">
+        <div class="section-title">🔄 Processos</div>
+        <button class="btn btn-primary btn-sm" onclick="openModalNovoProcesso()">+ Novo Processo</button>
+      </div>
+      <div id="processos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.2rem"></div>
+    </div>
+
     <div class="section" id="sec-config">
       <div class="section-header">
         <div class="section-title">⚙️ Configurações</div>
@@ -1179,6 +1189,60 @@ tr:hover td{background:#F8FAFC}
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem">
       <button class="btn btn-ghost" onclick="closeModal('modal-kanban-late')">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmReschedule()">Reagendar e Avançar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NOVO/EDITAR PROCESSO -->
+<div class="modal-overlay" id="modal-processo">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-processo-title">Novo Processo</div>
+      <button class="modal-close" onclick="closeModal('modal-processo')">✕</button>
+    </div>
+    <input type="hidden" id="proc-edit-id">
+    <div class="form-group"><label>Nome do Processo *</label><input type="text" id="proc-nome" placeholder="Ex: Indicadores, Liderança, Call Center..."></div>
+    <div class="form-group"><label>Ícone (emoji)</label><input type="text" id="proc-icone" placeholder="📊" maxlength="4"></div>
+    <div class="form-group">
+      <label>Etapas do checklist</label>
+      <div id="proc-etapas-list" style="margin-bottom:0.6rem"></div>
+      <div style="display:flex;gap:0.5rem">
+        <input type="text" id="proc-nova-etapa" placeholder="Adicionar etapa..." style="flex:1;padding:0.45rem 0.75rem;border:1.5px solid var(--gray-light);border-radius:8px;font-size:0.85rem" onkeydown="if(event.key==='Enter'){event.preventDefault();window.addEtapaProc()}">
+        <button class="btn btn-ghost btn-sm" onclick="window.addEtapaProc()">+ Etapa</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-processo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="window.saveProcesso()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALHE PROCESSO (clientes) -->
+<div class="modal-overlay" id="modal-processo-detalhe">
+  <div class="modal-box" style="max-width:680px;max-height:90vh;overflow-y:auto">
+    <div class="modal-header" style="position:sticky;top:0;background:#fff;z-index:1;border-radius:12px 12px 0 0">
+      <div class="modal-title" id="mpd-title">Processo</div>
+      <button class="modal-close" onclick="closeModal('modal-processo-detalhe')">✕</button>
+    </div>
+    <div style="padding:0 0 1rem">
+      <div id="mpd-clientes-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CHECKLIST PROCESSO × CLIENTE -->
+<div class="modal-overlay" id="modal-processo-checklist">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title" id="mpc-title">Checklist</div>
+      <button class="modal-close" onclick="closeModal('modal-processo-checklist')">✕</button>
+    </div>
+    <p id="mpc-subtitle" style="font-size:0.82rem;color:var(--gray);margin-bottom:1rem"></p>
+    <div id="mpc-steps"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:1.2rem;gap:0.5rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-processo-checklist')">Fechar</button>
+      <button class="btn btn-primary" onclick="window.saveChecklist()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1562,7 +1626,7 @@ function showSection(name) {
   document.getElementById('sec-'+name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.textContent.trim().toLowerCase().includes(
-      {dashboard:'dashboard',clients:'clientes',tasks:'tarefas',calendar:'agenda',report:'relatório'}[name]||name
+      {dashboard:'dashboard',clients:'clientes',tasks:'tarefas',calendar:'agenda',report:'relatório',processos:'processos',metas:'metas',kanban:'kanban',config:'configurações'}[name]||name
     )) n.classList.add('active');
   });
   closeSidebar();
@@ -1574,6 +1638,7 @@ function showSection(name) {
   if (name==='config') { renderConfigConsultores(); renderConfigUsers(); }
   if (name==='metas') initMetas();
   if (name==='kanban') loadKanban();
+  if (name==='processos') loadProcessos();
 }
 
 function showTab(name) {
@@ -4873,6 +4938,206 @@ async function _applyKanbanMove(id, newStatus, newDue) {
   const labels = { todo:'A Fazer', doing:'Fazendo', done:'Concluído ✅' };
   toast(`Movido para ${labels[newStatus]}`);
 }
+
+
+// ============================================================
+// PROCESSOS
+// ============================================================
+let processosCache = [];
+let procEtapasEdit = [];
+let procDetalheId = null;
+let checklistClienteId = null;
+
+async function loadProcessos() {
+  const snap = await db.collection('processos').get();
+  processosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderProcessosGrid();
+}
+
+function renderProcessosGrid() {
+  const grid = document.getElementById('processos-grid');
+  if (!grid) return;
+  if (!processosCache.length) {
+    grid.innerHTML = '<p style="color:var(--gray);font-size:0.9rem;grid-column:1/-1">Nenhum processo cadastrado. Clique em "+ Novo Processo" para começar.</p>';
+    return;
+  }
+  grid.innerHTML = processosCache.map(p => {
+    const etapas = p.etapas || [];
+    const icone = p.icone || '🔄';
+    return `<div class="card" style="cursor:pointer;border-top:4px solid var(--gold);transition:box-shadow 0.15s" onclick="window.openProcessoDetalhe('${p.id}')" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.14)'" onmouseout="this.style.boxShadow=''">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem">
+        <div style="display:flex;align-items:center;gap:0.6rem">
+          <span style="font-size:1.6rem">${icone}</span>
+          <div>
+            <div style="font-weight:700;font-size:1rem;color:var(--navy)">${p.nome}</div>
+            <div style="font-size:0.75rem;color:var(--gray)">${etapas.length} etapa${etapas.length!==1?'s':''}</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();window.openModalEditarProcesso('${p.id}')" title="Editar">✏️</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:0.3rem">
+        ${etapas.slice(0,4).map(e=>`<span style="background:var(--gray-light);color:var(--navy);border-radius:6px;padding:0.15rem 0.5rem;font-size:0.72rem">${e.label}</span>`).join('')}
+        ${etapas.length>4?`<span style="background:var(--gray-light);color:var(--gray);border-radius:6px;padding:0.15rem 0.5rem;font-size:0.72rem">+${etapas.length-4} mais</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.openModalNovoProcesso = function() {
+  procEtapasEdit = [];
+  document.getElementById('proc-edit-id').value = '';
+  document.getElementById('proc-nome').value = '';
+  document.getElementById('proc-icone').value = '';
+  document.getElementById('modal-processo-title').textContent = 'Novo Processo';
+  renderEtapasEdit();
+  openModal('modal-processo');
+};
+
+window.openModalEditarProcesso = function(id) {
+  const p = processosCache.find(x => x.id === id);
+  if (!p) return;
+  procEtapasEdit = (p.etapas || []).map(e => ({ ...e }));
+  document.getElementById('proc-edit-id').value = id;
+  document.getElementById('proc-nome').value = p.nome || '';
+  document.getElementById('proc-icone').value = p.icone || '';
+  document.getElementById('modal-processo-title').textContent = 'Editar Processo';
+  renderEtapasEdit();
+  openModal('modal-processo');
+};
+
+function renderEtapasEdit() {
+  const el = document.getElementById('proc-etapas-list');
+  if (!el) return;
+  if (!procEtapasEdit.length) { el.innerHTML = '<p style="color:var(--gray);font-size:0.8rem;margin-bottom:0.4rem">Nenhuma etapa adicionada ainda.</p>'; return; }
+  el.innerHTML = procEtapasEdit.map((e,i) => `
+    <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
+      <span style="width:20px;text-align:center;color:var(--gray);font-size:0.75rem">${i+1}.</span>
+      <input type="text" value="${e.label}" oninput="procEtapasEdit[${i}].label=this.value" style="flex:1;padding:0.35rem 0.6rem;border:1.5px solid var(--gray-light);border-radius:7px;font-size:0.85rem">
+      <button onclick="window.removeEtapa(${i})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;padding:0 0.2rem">✕</button>
+    </div>`).join('');
+}
+
+window.addEtapaProc = function() {
+  const inp = document.getElementById('proc-nova-etapa');
+  const val = (inp.value || '').trim();
+  if (!val) return;
+  procEtapasEdit.push({ id: Date.now().toString(), label: val });
+  inp.value = '';
+  renderEtapasEdit();
+  inp.focus();
+};
+
+window.removeEtapa = function(i) {
+  procEtapasEdit.splice(i, 1);
+  renderEtapasEdit();
+};
+
+window.saveProcesso = async function() {
+  const nome = (document.getElementById('proc-nome').value || '').trim();
+  if (!nome) { toast('Informe o nome do processo.', 'error'); return; }
+  const icone = (document.getElementById('proc-icone').value || '').trim() || '🔄';
+  const editId = document.getElementById('proc-edit-id').value;
+  const data = { nome, icone, etapas: procEtapasEdit.filter(e => e.label.trim()), updated_at: firebase.firestore.FieldValue.serverTimestamp() };
+  if (editId) {
+    await db.collection('processos').doc(editId).update(data);
+  } else {
+    data.created_at = firebase.firestore.FieldValue.serverTimestamp();
+    await db.collection('processos').add(data);
+  }
+  closeModal('modal-processo');
+  toast('Processo salvo!');
+  await loadProcessos();
+};
+
+window.openProcessoDetalhe = async function(processoId) {
+  procDetalheId = processoId;
+  const proc = processosCache.find(x => x.id === processoId);
+  if (!proc) return;
+  document.getElementById('mpd-title').textContent = (proc.icone||'🔄') + ' ' + proc.nome;
+  const el = document.getElementById('mpd-clientes-list');
+  el.innerHTML = '<p style="color:var(--gray);font-size:0.85rem;padding:1rem">Carregando clientes...</p>';
+  openModal('modal-processo-detalhe');
+
+  // Busca todos clientes ativos
+  const cSnap = await db.collection('clients').where('status','==','active').get();
+  const clients = cSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+
+  // Busca progressos já salvos para este processo
+  const pSnap = await db.collection('processo_progresso')
+    .where('processo_id','==',processoId).get();
+  const progressoMap = {};
+  pSnap.docs.forEach(d => { const dt = d.data(); progressoMap[dt.client_id] = dt.steps_done || []; });
+
+  const etapas = proc.etapas || [];
+  const total = etapas.length;
+
+  el.innerHTML = clients.length === 0
+    ? '<p style="color:var(--gray);font-size:0.85rem;padding:1rem">Nenhum cliente ativo encontrado.</p>'
+    : clients.map(c => {
+        const done = (progressoMap[c.id] || []).length;
+        const pct = total > 0 ? Math.round(done/total*100) : 0;
+        const barColor = pct===100 ? 'var(--success)' : pct>50 ? 'var(--warning)' : 'var(--gold)';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0.5rem;border-bottom:1px solid var(--gray-light);gap:1rem;cursor:pointer" onclick="window.openChecklist('${processoId}','${c.id}','${(c.name||'').replace(/'/g,"\\'")}')">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:0.9rem;color:var(--navy)">${c.name||'—'}</div>
+            <div style="margin-top:0.4rem;background:#e8edf2;border-radius:6px;height:7px;overflow:hidden">
+              <div style="width:${pct}%;background:${barColor};height:100%;border-radius:6px;transition:width 0.3s"></div>
+            </div>
+          </div>
+          <div style="font-size:0.8rem;color:var(--gray);white-space:nowrap">${done}/${total} <span style="color:${barColor};font-weight:700">${pct}%</span></div>
+          <span style="color:var(--gold);font-size:1.1rem">›</span>
+        </div>`;
+      }).join('');
+};
+
+window.openChecklist = async function(processoId, clientId, clientName) {
+  checklistClienteId = clientId;
+  const proc = processosCache.find(x => x.id === processoId);
+  if (!proc) return;
+  document.getElementById('mpc-title').textContent = (proc.icone||'🔄') + ' ' + proc.nome;
+  document.getElementById('mpc-subtitle').textContent = '📍 ' + clientName;
+
+  // Busca progresso salvo
+  const docId = processoId + '_' + clientId;
+  const snap = await db.collection('processo_progresso').doc(docId).get();
+  const stepsDone = snap.exists ? (snap.data().steps_done || []) : [];
+
+  const etapas = proc.etapas || [];
+  const el = document.getElementById('mpc-steps');
+  el.innerHTML = etapas.map((e,i) => {
+    const checked = stepsDone.includes(e.id);
+    return `<label style="display:flex;align-items:center;gap:0.75rem;padding:0.7rem 0.5rem;border-bottom:1px solid var(--gray-light);cursor:pointer;border-radius:6px;transition:background 0.1s" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+      <input type="checkbox" id="chk-${e.id}" ${checked?'checked':''} style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer">
+      <span style="font-size:0.9rem;color:var(--navy)">${i+1}. ${e.label}</span>
+    </label>`;
+  }).join('') || '<p style="color:var(--gray);font-size:0.85rem">Nenhuma etapa cadastrada.</p>';
+
+  window._checklistProcId = processoId;
+  openModal('modal-processo-checklist');
+};
+
+window.saveChecklist = async function() {
+  const proc = processosCache.find(x => x.id === window._checklistProcId);
+  if (!proc || !checklistClienteId) return;
+  const etapas = proc.etapas || [];
+  const stepsDone = etapas.filter(e => {
+    const el = document.getElementById('chk-'+e.id);
+    return el && el.checked;
+  }).map(e => e.id);
+  const docId = window._checklistProcId + '_' + checklistClienteId;
+  await db.collection('processo_progresso').doc(docId).set({
+    processo_id: window._checklistProcId,
+    client_id: checklistClienteId,
+    steps_done: stepsDone,
+    updated_by: session ? session.name : '—',
+    updated_at: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  closeModal('modal-processo-checklist');
+  toast('Progresso salvo!');
+  // Recarrega detalhe do processo para atualizar barras
+  await window.openProcessoDetalhe(window._checklistProcId);
+};
+
 </script>
 
 <!-- SERVICE WORKER -->
