@@ -4842,8 +4842,9 @@ window.moveKanban = async function(id, newStatus) {
   if (isLate(c) && newStatus === 'todo') {
     toast('Tarefa atrasada não pode voltar para A Fazer.', 'error'); return;
   }
-  // avançar card atrasado → exige novo prazo
-  if (isLate(c) && newStatus !== c.status) {
+  // avançar card atrasado para "fazendo" → exige novo prazo
+  // mover para "feito" nunca exige nova data (tarefa concluída)
+  if (isLate(c) && newStatus === 'doing') {
     kanbanPendingMove = { id, newStatus };
     document.getElementById('kc-new-due').value = '';
     openModal('modal-kanban-late');
