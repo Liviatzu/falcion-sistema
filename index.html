@@ -827,7 +827,10 @@ tr:hover td{background:#F8FAFC}
     <div class="section" id="sec-processos">
       <div class="section-header">
         <div class="section-title">🔄 Processos</div>
-        <button class="btn btn-primary btn-sm" onclick="openModalNovoProcesso()">+ Novo Processo</button>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn btn-ghost btn-sm" id="btn-gerenciar-processos" onclick="openGerenciarProcessos()" style="display:none">⚙️ Gerenciar</button>
+          <button class="btn btn-primary btn-sm" id="btn-novo-processo" onclick="openModalNovoProcesso()" style="display:none">+ Novo Processo</button>
+        </div>
       </div>
       <div id="processos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.2rem"></div>
     </div>
@@ -4945,39 +4948,91 @@ async function _applyKanbanMove(id, newStatus, newDue) {
 // ============================================================
 let processosCache = [];
 let procEtapasEdit = [];
-let procDetalheId = null;
 let checklistClienteId = null;
+let procClientesCache = [];
+let procProgressoCache = {};
 
 async function loadProcessos() {
-  const snap = await db.collection('processos').get();
-  processosCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Mostra botões só para admin/gestor
+  const isAdmin = session && (session.role === 'admin' || session.role === 'gestor');
+  const btnG = document.getElementById('btn-gerenciar-processos');
+  const btnN = document.getElementById('btn-novo-processo');
+  if (btnG) btnG.style.display = isAdmin ? '' : 'none';
+  if (btnN) btnN.style.display = isAdmin ? '' : 'none';
+
+  // Carrega processos e clientes em paralelo
+  const [pSnap, cSnap, progSnap] = await Promise.all([
+    db.collection('processos').get(),
+    db.collection('clients').where('status','==','active').get(),
+    db.collection('processo_progresso').get()
+  ]);
+  processosCache = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  procClientesCache = cSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  procProgressoCache = {};
+  progSnap.docs.forEach(d => { procProgressoCache[d.id] = d.data(); });
   renderProcessosGrid();
 }
+
+window.openGerenciarProcessos = function() {
+  // Abre modal de novo processo em modo listagem — reusa o modal existente como lista
+  // Exibe modal detalhe com lista de processos para editar
+  document.getElementById('mpd-title').textContent = '⚙️ Gerenciar Processos';
+  const el = document.getElementById('mpd-clientes-list');
+  el.innerHTML = processosCache.map(p => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0.5rem;border-bottom:1px solid var(--gray-light);gap:0.5rem">
+      <div style="display:flex;align-items:center;gap:0.6rem;flex:1;min-width:0">
+        <span style="font-size:1.2rem">${p.icone||'🔄'}</span>
+        <div>
+          <div style="font-weight:600;font-size:0.9rem;color:var(--navy)">${p.nome}</div>
+          <div style="font-size:0.75rem;color:var(--gray)">${(p.etapas||[]).length} etapa${(p.etapas||[]).length!==1?'s':''}</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-processo-detalhe');window.openModalEditarProcesso('${p.id}')">✏️ Editar</button>
+    </div>`).join('') + `<div style="padding:1rem 0.5rem">
+      <button class="btn btn-primary btn-sm" onclick="closeModal('modal-processo-detalhe');window.openModalNovoProcesso()">+ Novo Processo</button>
+    </div>`;
+  openModal('modal-processo-detalhe');
+};
 
 function renderProcessosGrid() {
   const grid = document.getElementById('processos-grid');
   if (!grid) return;
-  if (!processosCache.length) {
-    grid.innerHTML = '<p style="color:var(--gray);font-size:0.9rem;grid-column:1/-1">Nenhum processo cadastrado. Clique em "+ Novo Processo" para começar.</p>';
+  if (!procClientesCache.length) {
+    grid.innerHTML = '<p style="color:var(--gray);font-size:0.9rem;grid-column:1/-1">Nenhum cliente ativo encontrado.</p>';
     return;
   }
-  grid.innerHTML = processosCache.map(p => {
-    const etapas = p.etapas || [];
-    const icone = p.icone || '🔄';
-    return `<div class="card" style="cursor:pointer;border-top:4px solid var(--gold);transition:box-shadow 0.15s" onclick="window.openProcessoDetalhe('${p.id}')" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.14)'" onmouseout="this.style.boxShadow=''">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem">
-        <div style="display:flex;align-items:center;gap:0.6rem">
-          <span style="font-size:1.6rem">${icone}</span>
-          <div>
-            <div style="font-weight:700;font-size:1rem;color:var(--navy)">${p.nome}</div>
-            <div style="font-size:0.75rem;color:var(--gray)">${etapas.length} etapa${etapas.length!==1?'s':''}</div>
-          </div>
+  grid.innerHTML = procClientesCache.map(c => {
+    // Calcula progresso geral do cliente (média de todos os processos)
+    const total = processosCache.length;
+    const concluidos = processosCache.filter(p => {
+      const key = p.id + '_' + c.id;
+      const prog = procProgressoCache[key];
+      if (!prog) return false;
+      return (prog.steps_done||[]).length === (p.etapas||[]).length && (p.etapas||[]).length > 0;
+    }).length;
+    const iniciados = processosCache.filter(p => {
+      const key = p.id + '_' + c.id;
+      const prog = procProgressoCache[key];
+      return prog && (prog.steps_done||[]).length > 0;
+    }).length;
+    return `<div class="card" style="cursor:pointer;border-top:4px solid var(--gold);transition:box-shadow 0.15s" onclick="window.openClienteProcessos('${c.id}','${(c.name||'').replace(/'/g,"\\'")}') " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.14)'" onmouseout="this.style.boxShadow=''">
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.8rem">
+        <div style="width:42px;height:42px;border-radius:50%;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:0.95rem;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
+          <div style="font-size:0.73rem;color:var(--gray);margin-top:0.1rem">${iniciados} de ${total} processo${total!==1?'s':''} iniciado${iniciados!==1?'s':''}</div>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();window.openModalEditarProcesso('${p.id}')" title="Editar">✏️</button>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:0.3rem">
-        ${etapas.slice(0,4).map(e=>`<span style="background:var(--gray-light);color:var(--navy);border-radius:6px;padding:0.15rem 0.5rem;font-size:0.72rem">${e.label}</span>`).join('')}
-        ${etapas.length>4?`<span style="background:var(--gray-light);color:var(--gray);border-radius:6px;padding:0.15rem 0.5rem;font-size:0.72rem">+${etapas.length-4} mais</span>`:''}
+      <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
+        ${processosCache.map(p => {
+          const key = p.id + '_' + c.id;
+          const prog = procProgressoCache[key];
+          const done = prog ? (prog.steps_done||[]).length : 0;
+          const total2 = (p.etapas||[]).length;
+          const pct = total2 > 0 ? Math.round(done/total2*100) : 0;
+          const color = pct===100 ? '#27AE60' : pct>0 ? '#F39C12' : '#ccc';
+          return `<span title="${p.nome}: ${pct}%" style="background:${color};color:#fff;border-radius:5px;padding:0.15rem 0.45rem;font-size:0.68rem;font-weight:600">${p.icone||'🔄'} ${pct}%</span>`;
+        }).join('')}
       </div>
     </div>`;
   }).join('');
@@ -5047,47 +5102,41 @@ window.saveProcesso = async function() {
   closeModal('modal-processo');
   toast('Processo salvo!');
   await loadProcessos();
+  // Se veio de Gerenciar, reabre a listagem
+  window.openGerenciarProcessos();
 };
 
-window.openProcessoDetalhe = async function(processoId) {
-  procDetalheId = processoId;
-  const proc = processosCache.find(x => x.id === processoId);
-  if (!proc) return;
-  document.getElementById('mpd-title').textContent = (proc.icone||'🔄') + ' ' + proc.nome;
+window.openClienteProcessos = function(clientId, clientName) {
+  checklistClienteId = clientId;
+  document.getElementById('mpd-title').textContent = '🏢 ' + clientName;
   const el = document.getElementById('mpd-clientes-list');
-  el.innerHTML = '<p style="color:var(--gray);font-size:0.85rem;padding:1rem">Carregando clientes...</p>';
+
+  el.innerHTML = processosCache.map(p => {
+    const key = p.id + '_' + clientId;
+    const prog = procProgressoCache[key];
+    const done = prog ? (prog.steps_done||[]).length : 0;
+    const total = (p.etapas||[]).length;
+    const pct = total > 0 ? Math.round(done/total*100) : 0;
+    const barColor = pct===100 ? 'var(--success)' : pct>0 ? 'var(--warning)' : 'var(--gold)';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.9rem 0.5rem;border-bottom:1px solid var(--gray-light);gap:1rem;cursor:pointer" onclick="window.openChecklist('${p.id}','${clientId}','${clientName.replace(/'/g,"\\'")}')">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">
+          <span style="font-size:1.1rem">${p.icone||'🔄'}</span>
+          <span style="font-weight:600;font-size:0.9rem;color:var(--navy)">${p.nome}</span>
+        </div>
+        <div style="background:#e8edf2;border-radius:6px;height:7px;overflow:hidden">
+          <div style="width:${pct}%;background:${barColor};height:100%;border-radius:6px;transition:width 0.3s"></div>
+        </div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--gray);white-space:nowrap;text-align:right">
+        <div>${done}/${total}</div>
+        <div style="color:${barColor};font-weight:700">${pct}%</div>
+      </div>
+      <span style="color:var(--gold);font-size:1.1rem">›</span>
+    </div>`;
+  }).join('') || '<p style="color:var(--gray);font-size:0.85rem;padding:1rem">Nenhum processo cadastrado.</p>';
+
   openModal('modal-processo-detalhe');
-
-  // Busca todos clientes ativos
-  const cSnap = await db.collection('clients').where('status','==','active').get();
-  const clients = cSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-
-  // Busca progressos já salvos para este processo
-  const pSnap = await db.collection('processo_progresso')
-    .where('processo_id','==',processoId).get();
-  const progressoMap = {};
-  pSnap.docs.forEach(d => { const dt = d.data(); progressoMap[dt.client_id] = dt.steps_done || []; });
-
-  const etapas = proc.etapas || [];
-  const total = etapas.length;
-
-  el.innerHTML = clients.length === 0
-    ? '<p style="color:var(--gray);font-size:0.85rem;padding:1rem">Nenhum cliente ativo encontrado.</p>'
-    : clients.map(c => {
-        const done = (progressoMap[c.id] || []).length;
-        const pct = total > 0 ? Math.round(done/total*100) : 0;
-        const barColor = pct===100 ? 'var(--success)' : pct>50 ? 'var(--warning)' : 'var(--gold)';
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 0.5rem;border-bottom:1px solid var(--gray-light);gap:1rem;cursor:pointer" onclick="window.openChecklist('${processoId}','${c.id}','${(c.name||'').replace(/'/g,"\\'")}')">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:0.9rem;color:var(--navy)">${c.name||'—'}</div>
-            <div style="margin-top:0.4rem;background:#e8edf2;border-radius:6px;height:7px;overflow:hidden">
-              <div style="width:${pct}%;background:${barColor};height:100%;border-radius:6px;transition:width 0.3s"></div>
-            </div>
-          </div>
-          <div style="font-size:0.8rem;color:var(--gray);white-space:nowrap">${done}/${total} <span style="color:${barColor};font-weight:700">${pct}%</span></div>
-          <span style="color:var(--gold);font-size:1.1rem">›</span>
-        </div>`;
-      }).join('');
 };
 
 window.openChecklist = async function(processoId, clientId, clientName) {
@@ -5132,10 +5181,14 @@ window.saveChecklist = async function() {
     updated_by: session ? session.name : '—',
     updated_at: firebase.firestore.FieldValue.serverTimestamp()
   });
+  // Atualiza cache local
+  const docId2 = window._checklistProcId + '_' + checklistClienteId;
+  procProgressoCache[docId2] = { processo_id: window._checklistProcId, client_id: checklistClienteId, steps_done: stepsDone };
   closeModal('modal-processo-checklist');
   toast('Progresso salvo!');
-  // Recarrega detalhe do processo para atualizar barras
-  await window.openProcessoDetalhe(window._checklistProcId);
+  // Recarrega visão do cliente no modal de detalhe
+  const c = procClientesCache.find(x => x.id === checklistClienteId);
+  if (c) window.openClienteProcessos(c.id, c.name);
 };
 
 </script>
