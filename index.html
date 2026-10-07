@@ -167,6 +167,7 @@ tr:hover td{background:#F8FAFC}
 .tss-pending{background:#FDEDEC;color:#922B21}
 .tss-in_progress{background:#FEF3E7;color:#B7600B}
 .tss-done{background:#D5F5E3;color:#1E8449}
+.tss-suspended{background:#F0F0F0;color:#6B7280}
 .task-body{flex:1}
 .task-title-text{font-weight:600;color:var(--navy);font-size:0.9rem}
 .task-title-text.done-text{text-decoration:line-through;color:var(--gray)}
@@ -1064,6 +1065,7 @@ tr:hover td{background:#F8FAFC}
           <option value="pending">🔴 Pendente</option>
           <option value="in_progress">🟡 Em Andamento</option>
           <option value="done">✅ Concluída</option>
+          <option value="suspended">⏸️ Suspensa</option>
         </select>
       </div>
     </div>
@@ -3414,7 +3416,8 @@ function renderTaskList(list, containerId) {
     const stOpts = [
       {v:'pending',l:'🔴 Pendente'},
       {v:'in_progress',l:'🟡 Em Andamento'},
-      {v:'done',l:'✅ Concluída'}
+      {v:'done',l:'✅ Concluída'},
+      {v:'suspended',l:'⏸️ Suspensa'}
     ];
     const statusSel = `<select class="task-status-sel tss-${st}" onchange="changeTaskStatus('${t.id}',this)" title="Alterar status">
       ${stOpts.map(o=>`<option value="${o.v}"${o.v===st?' selected':''}>${o.l}</option>`).join('')}
@@ -5357,9 +5360,9 @@ async function conectarAsana() {
     const projectGid = json.data.gid;
 
     // 2. Cria as 3 seções (colunas do Kanban)
-    const sectionNames = ['Pendente', 'Em Andamento', 'Concluída'];
+    const sectionNames = ['Pendente', 'Em Andamento', 'Concluída', 'Suspensa'];
     const sectionGids = {};
-    const statusKeys = ['pending', 'in_progress', 'done'];
+    const statusKeys = ['pending', 'in_progress', 'done', 'suspended'];
     for (let i = 0; i < sectionNames.length; i++) {
       const sr = await fetch(`https://app.asana.com/api/1.0/projects/${projectGid}/sections`, {
         method: 'POST', headers,
@@ -5414,7 +5417,7 @@ async function syncTaskAsana(taskId, clientId, payload, mode) {
   const asanaTaskGid = taskDoc.exists ? taskDoc.data().asana_task_gid : null;
 
   const status = payload.status || 'pending';
-  const completed = status === 'done';
+  const completed = status === 'done'; // Suspensa não marca como concluída no Asana
   const dueOn = payload.due || null;
 
   const asanaPayload = { data: {
