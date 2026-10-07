@@ -3605,7 +3605,7 @@ async function saveTask() {
     if (currentClientId && clientId===currentClientId) loadClientTasks(currentClientId);
     else loadAllTasks();
     // Sync Asana em background (não bloqueia UX)
-    if (clientId && savedDocId) syncTaskAsana(savedDocId, clientId, payload, editId ? 'update' : 'create').catch(()=>{});
+    if (clientId && savedDocId) syncTaskAsana(savedDocId, clientId, payload, editId ? 'update' : 'create').catch(e => toast('Asana: ' + e.message, 'error'));
   } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
