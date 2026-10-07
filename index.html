@@ -3384,6 +3384,7 @@ window.toggleSubtask = async function(taskId, subId) {
     await db.collection('tasks').doc(taskId).update({ status: 'done' });
     if (t) t.status = 'done';
     toast('✅ Todas as subtarefas concluídas! Tarefa marcada como Concluída.');
+    if (t && t.client_id) syncTaskAsana(taskId, t.client_id, {...t, status:'done'}, 'update').catch(()=>{});
   }
   if (currentClientId) loadClientTasks(currentClientId);
   else renderTasks(allTasks);
@@ -3545,6 +3546,9 @@ async function changeTaskStatus(id, el) {
 
   // Atualizar painel de horas se estivermos na aba tarefas do cliente
   if (currentClientId && typeof loadClientTasks === 'function') loadClientTasks(currentClientId);
+
+  // Sync Asana
+  if (task && task.client_id) syncTaskAsana(id, task.client_id, task, 'update').catch(e => toast('Asana: ' + e.message, 'error'));
 }
 
 async function openTaskModal(preClientId) {
