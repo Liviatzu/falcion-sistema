@@ -5375,6 +5375,15 @@ async function conectarAsana() {
     currentClientData.asana_project_gid = projectGid;
     currentClientData.asana_sections = sectionGids;
 
+    // 4. Convida membros da equipe
+    const members = asanaConfig.members || [];
+    if (members.length > 0) {
+      await fetch(`https://app.asana.com/api/1.0/projects/${projectGid}/addMembers`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ data: { members } })
+      });
+    }
+
     if (btn) {
       btn.textContent = '✅ Asana';
       btn.title = 'Projeto Asana conectado';
@@ -5382,7 +5391,7 @@ async function conectarAsana() {
       btn.classList.remove('btn-ghost');
       btn.classList.add('btn-success');
     }
-    toast('Projeto Asana criado com Kanban (Pendente / Em Andamento / Concluída)!');
+    toast('Projeto Asana criado! Kanban + equipe convidada automaticamente.');
   } catch(e) {
     if (btn) { btn.textContent = '🔗 Asana'; btn.disabled = false; }
     toast('Erro ao criar projeto Asana: ' + e.message, 'error');
