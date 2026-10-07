@@ -490,6 +490,7 @@ tr:hover td{background:#F8FAFC}
           <button class="btn btn-primary btn-sm" onclick="abrirModalRelatorio('visits')">📄 Relatório</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirHistorico()">📊 Histórico</button>
           <button class="btn btn-ghost btn-sm" onclick="openEditClientModal()" title="Editar cliente">✏️</button>
+          <button class="btn btn-ghost btn-sm" id="btn-asana" onclick="conectarAsana()" title="Conectar ao Asana" style="display:none"></button>
           <div class="cd-hours-box">
             <div>
               <div class="cd-hours-lbl">DISPONÍVEL</div>
@@ -1882,6 +1883,7 @@ function enterApp() {
   loadComunicados(); // badge no sino
   loadDashboard();
   loadConsultoresConfig();
+  loadAsanaConfig();
 }
 
 function logout() {
@@ -2339,6 +2341,22 @@ async function openClientDetail(id) {
     );
     document.getElementById('detail-status-badge').textContent =
       {active:'Ativo',paused:'Pausado',done:'Encerrado'}[currentClientData.status]||'Ativo';
+    // Botão Asana
+    const btnA = document.getElementById('btn-asana');
+    if (btnA && asanaConfig) {
+      btnA.style.display = '';
+      if (currentClientData.asana_project_gid) {
+        btnA.textContent = '✅ Asana';
+        btnA.title = 'Projeto Asana conectado';
+        btnA.classList.remove('btn-ghost');
+        btnA.classList.add('btn-success');
+      } else {
+        btnA.textContent = '🔗 Asana';
+        btnA.title = 'Criar projeto no Asana';
+        btnA.classList.add('btn-ghost');
+        btnA.classList.remove('btn-success');
+      }
+    }
   } catch(e) { console.error(e); }
 
   // Load visits (primary tab)
@@ -3574,16 +3592,20 @@ async function saveTask() {
       personal: document.getElementById('t-personal').checked,
       personal_owner: document.getElementById('t-personal').checked ? session.name : '',
     };
+    let savedDocId = editId;
     if (editId) {
       await db.collection('tasks').doc(editId).update(payload);
       toast('Tarefa atualizada!');
     } else {
-      await db.collection('tasks').add({...payload, status:'pending', created_by:session.name, created_at:firebase.firestore.FieldValue.serverTimestamp()});
+      const ref = await db.collection('tasks').add({...payload, status:'pending', created_by:session.name, created_at:firebase.firestore.FieldValue.serverTimestamp()});
+      savedDocId = ref.id;
       toast('Tarefa criada!');
     }
     closeModal('modal-task');
     if (currentClientId && clientId===currentClientId) loadClientTasks(currentClientId);
     else loadAllTasks();
+    // Sync Asana em background (não bloqueia UX)
+    if (clientId && savedDocId) syncTaskAsana(savedDocId, clientId, payload, editId ? 'update' : 'create').catch(()=>{});
   } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
@@ -4964,6 +4986,7 @@ let procEtapasEdit = [];
 let checklistClienteId = null;
 let procClientesCache = [];
 let procProgressoCache = {};
+let asanaConfig = null;
 
 async function loadProcessos() {
   // Mostra botões só para admin/gestor
@@ -5289,6 +5312,106 @@ window.saveChecklist = async function() {
   const c = procClientesCache.find(x => x.id === checklistClienteId);
   if (c) window.openClienteProcessos(c.id, c.name);
 };
+
+// ============================================================
+// ASANA INTEGRATION
+// ============================================================
+async function loadAsanaConfig() {
+  try {
+    const doc = await db.collection('config').doc('asana').get();
+    if (doc.exists) asanaConfig = doc.data();
+  } catch(e) { console.warn('Asana config não encontrada', e); }
+}
+
+async function conectarAsana() {
+  if (!asanaConfig) { toast('Configuração Asana não encontrada','error'); return; }
+  if (!currentClientData) return;
+  if (currentClientData.asana_project_gid) {
+    const url = `https://app.asana.com/0/${currentClientData.asana_project_gid}`;
+    window.open(url, '_blank');
+    return;
+  }
+  const btn = document.getElementById('btn-asana');
+  if (btn) { btn.textContent = '⏳ Criando...'; btn.disabled = true; }
+  try {
+    const resp = await fetch('https://app.asana.com/api/1.0/projects', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + asanaConfig.token,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ data: {
+        name: currentClientData.name,
+        workspace: asanaConfig.workspace_gid,
+        default_view: 'list'
+      }})
+    });
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json.errors?.[0]?.message || 'Erro Asana');
+    const projectGid = json.data.gid;
+    await db.collection('clients').doc(currentClientData.id).update({ asana_project_gid: projectGid });
+    currentClientData.asana_project_gid = projectGid;
+    if (btn) {
+      btn.textContent = '✅ Asana';
+      btn.title = 'Projeto Asana conectado';
+      btn.disabled = false;
+      btn.classList.remove('btn-ghost');
+      btn.classList.add('btn-success');
+    }
+    toast('Projeto criado no Asana!');
+  } catch(e) {
+    if (btn) { btn.textContent = '🔗 Asana'; btn.disabled = false; }
+    toast('Erro ao criar projeto Asana: ' + e.message, 'error');
+  }
+}
+
+async function syncTaskAsana(taskId, clientId, payload, mode) {
+  if (!asanaConfig) return;
+  // Busca o GID do projeto do cliente
+  const clientDoc = await db.collection('clients').doc(clientId).get();
+  const clientData = clientDoc.data();
+  if (!clientData || !clientData.asana_project_gid) return;
+
+  const taskDoc = await db.collection('tasks').doc(taskId).get();
+  const asanaTaskGid = taskDoc.exists ? taskDoc.data().asana_task_gid : null;
+
+  // Monta due_on no formato YYYY-MM-DD
+  const dueOn = payload.due || null;
+  // Mapeia status FalciON → completed Asana
+  const completed = payload.status === 'done';
+
+  const asanaPayload = { data: {
+    name: payload.title,
+    notes: [payload.demanda, payload.tempo_previsto ? 'Tempo previsto: ' + payload.tempo_previsto : '', payload.frequencia ? 'Frequência: ' + payload.frequencia : ''].filter(Boolean).join('\n'),
+    completed,
+    ...(dueOn ? { due_on: dueOn } : {})
+  }};
+
+  let newGid = asanaTaskGid;
+  if (asanaTaskGid && mode === 'update') {
+    // Atualiza tarefa existente
+    const r = await fetch(`https://app.asana.com/api/1.0/tasks/${asanaTaskGid}`, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + asanaConfig.token, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(asanaPayload)
+    });
+    if (!r.ok) throw new Error('Asana update failed');
+  } else {
+    // Cria nova tarefa no projeto
+    asanaPayload.data.projects = [clientData.asana_project_gid];
+    const r = await fetch('https://app.asana.com/api/1.0/tasks', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + asanaConfig.token, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(asanaPayload)
+    });
+    if (!r.ok) throw new Error('Asana create failed');
+    const json = await r.json();
+    newGid = json.data.gid;
+    // Salva GID da tarefa Asana no Firestore para futuras atualizações
+    await db.collection('tasks').doc(taskId).update({ asana_task_gid: newGid });
+  }
+}
 
 </script>
 
