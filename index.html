@@ -659,6 +659,7 @@ tr:hover td{background:#F8FAFC}
           <option value="all">Todas</option>
           <option value="pending">Pendentes</option>
           <option value="in_progress">Em Andamento</option>
+          <option value="suspended">Suspensas</option>
           <option value="done">Concluídas</option>
         </select>
         <select id="task-filter-consultor" onchange="filterTasks()" style="padding:0.6rem 1rem;border-radius:8px;border:1.5px solid var(--gray-light);font-family:inherit;font-size:0.88rem">
@@ -2966,8 +2967,8 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     if (t.personal && t.personal_owner !== session.name) return false;
     return true;
   }).sort((a,b)=>{
-    const o={pending:0,in_progress:1};
-    return (o[a.status||'pending']||0)-(o[b.status||'pending']||0)||(a.due||'').localeCompare(b.due||'')||(a.title||'').localeCompare(b.title||'');
+    const o={pending:0,in_progress:1,suspended:2};
+    return (o[a.status||'pending']??0)-(o[b.status||'pending']??0)||(a.due||'').localeCompare(b.due||'')||(a.title||'').localeCompare(b.title||'');
   });
 
   // Concluídas do mês atual (para exibir se solicitado)
