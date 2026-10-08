@@ -5379,9 +5379,17 @@ async function conectarAsana() {
     currentClientData.asana_project_gid = projectGid;
     currentClientData.asana_sections = sectionGids;
 
-    // 4. Convida membros da equipe
+    // 4. Convida membros da equipe: primeiro ao workspace, depois ao projeto
     const members = asanaConfig.members || [];
+    for (const email of members) {
+      // addUser ao workspace envia convite por e-mail se ainda não for membro
+      await fetch(`https://app.asana.com/api/1.0/workspaces/${asanaConfig.workspace_gid}/addUser`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ data: { user: email } })
+      });
+    }
     if (members.length > 0) {
+      // após garantir que são membros do workspace, adiciona ao projeto
       await fetch(`https://app.asana.com/api/1.0/projects/${projectGid}/addMembers`, {
         method: 'POST', headers,
         body: JSON.stringify({ data: { members } })
