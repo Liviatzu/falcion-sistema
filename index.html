@@ -3328,6 +3328,13 @@ window.saveSubtask = async function() {
   toast(subId ? 'Subtarefa atualizada!' : 'Subtarefa adicionada!');
   if (currentClientId) loadClientTasks(currentClientId);
   else renderTasks(allTasks);
+  // Sync Asana: cria ou atualiza subtarefa ligada à tarefa pai
+  const taskDoc2 = await db.collection('tasks').doc(taskId).get();
+  const taskData2 = taskDoc2.data();
+  const savedSub = current.find(s => s.title === title && s.due === due);
+  if (taskData2 && savedSub) {
+    syncSubtaskAsana(taskId, taskData2, savedSub, subId ? 'update' : 'create').catch(e => toast('Asana subtarefa: ' + e.message, 'error'));
+  }
 };
 
 window.toggleSubtask = async function(taskId, subId) {
@@ -3391,6 +3398,11 @@ window.toggleSubtask = async function(taskId, subId) {
   }
   if (currentClientId) loadClientTasks(currentClientId);
   else renderTasks(allTasks);
+  // Sync Asana: marca subtarefa como concluída/aberta
+  if (sub && taskData.client_id) {
+    const subAtualizada = { ...sub, done: nowDone };
+    syncSubtaskAsana(taskId, taskData, subAtualizada, 'update').catch(()=>{});
+  }
 };
 
 window.deleteSubtask = async function(taskId, subId) {
@@ -5324,6 +5336,52 @@ window.saveChecklist = async function() {
 // ============================================================
 // ASANA INTEGRATION
 // ============================================================
+async function syncSubtaskAsana(taskId, taskData, sub, mode) {
+  if (!asanaConfig) return;
+  // Busca GID do projeto do cliente
+  const clientDoc = await db.collection('clients').doc(taskData.client_id).get();
+  const clientData = clientDoc.data();
+  if (!clientData || !clientData.asana_project_gid) return;
+
+  const headers = {
+    'Authorization': 'Bearer ' + asanaConfig.token,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+
+  // Busca o asana_task_gid da tarefa pai
+  const taskDoc = await db.collection('tasks').doc(taskId).get();
+  const parentAsanaGid = taskDoc.exists ? taskDoc.data().asana_task_gid : null;
+  if (!parentAsanaGid) return; // tarefa pai ainda não sincronizada
+
+  // Verifica se a subtarefa já tem GID Asana salvo
+  const subAsanaKey = `asana_sub_${sub.id}`;
+  const subAsanaGid = taskDoc.exists ? taskDoc.data()[subAsanaKey] : null;
+
+  const completed = !!sub.done;
+  const asanaPayload = { data: {
+    name: sub.title,
+    completed,
+    ...(sub.due ? { due_on: sub.due } : {}),
+    ...(sub.assigned_to ? { assignee: sub.assigned_to } : {})
+  }};
+
+  if (subAsanaGid && mode === 'update') {
+    const r = await fetch(`https://app.asana.com/api/1.0/tasks/${subAsanaGid}`, {
+      method: 'PUT', headers, body: JSON.stringify(asanaPayload)
+    });
+    if (!r.ok) { const j = await r.json(); throw new Error(j.errors?.[0]?.message || 'Asana sub update failed'); }
+  } else {
+    // Cria subtarefa ligada à tarefa pai
+    const r = await fetch(`https://app.asana.com/api/1.0/tasks/${parentAsanaGid}/subtasks`, {
+      method: 'POST', headers, body: JSON.stringify(asanaPayload)
+    });
+    if (!r.ok) { const j = await r.json(); throw new Error(j.errors?.[0]?.message || 'Asana sub create failed'); }
+    const json = await r.json();
+    // Salva GID da subtarefa Asana no doc da tarefa pai
+    await db.collection('tasks').doc(taskId).update({ [subAsanaKey]: json.data.gid });
+  }
+}
 async function loadAsanaConfig() {
   try {
     const doc = await db.collection('config').doc('asana').get();
