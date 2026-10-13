@@ -4456,11 +4456,26 @@ async function loadReport() {
   const monthEnd   = `${ano}-${mes}-31`;
   const mesLabel = document.getElementById('rep-mes').options[document.getElementById('rep-mes').selectedIndex].text + '/' + ano;
 
-  // Busca clientes e visitas do período
-  const [cSnap, vSnap] = await Promise.all([
+  // Busca clientes, visitas do período e histórico do mês (para initial_hours correto)
+  const ym = `${ano}-${mes}`;
+  const now3 = new Date();
+  const curYM3 = `${now3.getFullYear()}-${String(now3.getMonth()+1).padStart(2,'0')}`;
+  const isMesAtual = ym === curYM3;
+
+  const [cSnap, vSnap, hSnap] = await Promise.all([
     db.collection('clients').where('status','==','active').get(),
-    db.collection('visits').get()
+    db.collection('visits').get(),
+    isMesAtual ? Promise.resolve(null) : db.collection('historico_mensal').where('month','==',ym).get()
   ]);
+
+  // Monta mapa client_id -> initial_hours do mês fechado
+  const historicoInitial = {};
+  if (hSnap) {
+    hSnap.docs.forEach(d => {
+      const h = d.data();
+      if (h.client_id) historicoInitial[h.client_id] = h.initial_hours;
+    });
+  }
 
   const clients = cSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
   const visits  = vSnap.docs.map(d=>d.data()).filter(v=>v.date && v.date >= monthStart && v.date <= monthEnd);
@@ -4479,7 +4494,8 @@ async function loadReport() {
   // Tabela principal
   const rows = clients.map(c => {
     const used    = visits.filter(v=>v.client_id===c.id).reduce((s,v)=>s+parseHHMM(v.hours),0);
-    const initial = parseHHMM(c.initial_hours||'0');
+    // Usa initial_hours do historico_mensal quando for mês fechado; senão usa o atual
+    const initial = parseHHMM(historicoInitial[c.id] || c.initial_hours||'0');
     const balanceRaw = initial - used;
     const balance = Math.round(balanceRaw * 60) / 60; // arredonda ao minuto para evitar float
     totalUsed += used; totalInitial += initial;
