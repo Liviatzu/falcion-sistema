@@ -3897,7 +3897,38 @@ function renderCronograma() {
   const consultorOpts = consultoresCache.map(c=>`<option value="${c}">${c}</option>`).join('');
   const statusOpts = CRON_STATUS.map(s=>`<option value="${s}">${s}</option>`).join('');
 
-  el.innerHTML = `
+  // Painel de horas: total cronograma vs horas disponíveis do cliente
+  const totalCronH = cronRows.reduce((s,r)=>s+parseHHMM(r.obs||'0'),0);
+  const dispH = parseHHMM((currentClientData&&currentClientData.initial_hours)||'0');
+  const saldoH = dispH - totalCronH;
+  const pct = dispH > 0 ? Math.min(totalCronH / dispH, 1) : 0;
+  const barColor = pct >= 1 ? '#dc2626' : pct >= 0.8 ? '#d97706' : '#16a34a';
+  const saldoColor = saldoH < 0 ? '#dc2626' : saldoH === 0 ? '#d97706' : '#16a34a';
+  const horasPanel = dispH > 0 ? `
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:0.8rem 1rem;margin-bottom:0.8rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:0.15rem;min-width:110px">
+        <span style="font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;font-weight:600">Cronograma</span>
+        <span style="font-size:1.1rem;font-weight:800;color:var(--navy)">${fmtHHMM(totalCronH)}h</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.15rem;min-width:110px">
+        <span style="font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;font-weight:600">Disponível</span>
+        <span style="font-size:1.1rem;font-weight:800;color:var(--navy)">${fmtHHMM(dispH)}h</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.15rem;min-width:110px">
+        <span style="font-size:0.65rem;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;font-weight:600">Saldo</span>
+        <span style="font-size:1.1rem;font-weight:800;color:${saldoColor}">${saldoH>=0?'+':''}${fmtHHMM(Math.abs(saldoH))}h</span>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:#6b7280;margin-bottom:0.25rem">
+          <span>Uso das horas disponíveis</span><span style="font-weight:700;color:${barColor}">${Math.round(pct*100)}%</span>
+        </div>
+        <div style="background:#e5e7eb;border-radius:99px;height:8px;overflow:hidden">
+          <div style="width:${Math.round(pct*100)}%;height:100%;background:${barColor};border-radius:99px;transition:width .3s"></div>
+        </div>
+      </div>
+    </div>` : '';
+
+  el.innerHTML = horasPanel + `
     <table style="width:100%;border-collapse:collapse;font-size:0.82rem;min-width:700px">
       <thead>
         <tr style="background:var(--navy);color:var(--gold)">
