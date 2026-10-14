@@ -3144,12 +3144,12 @@ async function loadMetas() {
     if (entry.units) return entry.units.some(Boolean);
     return true;
   }).length;
-  const pct = acomp > 0 ? Math.round(bateram / acomp * 100) : '—';
+  const pct = total > 0 ? Math.round(bateram / total * 100) : '—';
 
   document.getElementById('metas-kpi-total').textContent = total;
   document.getElementById('metas-kpi-acomp').textContent = acomp || '—';
   document.getElementById('metas-kpi-bateram').textContent = bateram;
-  document.getElementById('metas-kpi-pct').textContent = acomp > 0 ? pct + '%' : '—';
+  document.getElementById('metas-kpi-pct').textContent = total > 0 ? pct + '%' : '—';
 
   const clienteRow = (c) => {
     const n = c.num_unidades > 1 ? c.num_unidades : 0;
