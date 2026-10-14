@@ -4471,10 +4471,14 @@ async function loadReport() {
   // Monta mapa client_id -> initial_hours do mês fechado
   const historicoInitial = {};
   if (hSnap) {
+    console.log('[Relatório] historico_mensal docs encontrados para', ym, ':', hSnap.docs.length);
     hSnap.docs.forEach(d => {
       const h = d.data();
+      console.log('[Relatório] histórico:', h.client_name, h.month, h.initial_hours);
       if (h.client_id) historicoInitial[h.client_id] = h.initial_hours;
     });
+  } else {
+    console.log('[Relatório] mês atual, usando initial_hours do cliente');
   }
 
   const clients = cSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
