@@ -3132,29 +3132,24 @@ async function loadMetas() {
   const total = clients.length;
 
   // KPI: conta por unidades
-  let totalUn = 0, bateramUn = 0;
-  clients.forEach(c => {
-    const n = c.num_unidades > 1 ? c.num_unidades : 1;
-    totalUn += n;
-    const entry = metasDocs[c.id];
-    if (entry) {
-      if (entry.units) bateramUn += entry.units.filter(Boolean).length;
-      else bateramUn += 1;
-    }
-  });
-
   const cfgSnap = await db.collection('metas_config').doc(ym).get();
   metasAcompClientes = cfgSnap.exists ? (cfgSnap.data().clientes_acompanhados || []) : [];
   renderMetasAcompList();
 
   const acomp = metasAcompClientes.filter(x=>x).length;
-  const bateram = clients.filter(c=>metasDocs[c.id]).length;
-  const pct = totalUn > 0 ? Math.round(bateramUn / totalUn * 100) : '—';
+  // Um cliente "bate a meta" se pelo menos 1 loja/unidade foi marcada
+  const bateram = clients.filter(c => {
+    const entry = metasDocs[c.id];
+    if (!entry) return false;
+    if (entry.units) return entry.units.some(Boolean);
+    return true;
+  }).length;
+  const pct = acomp > 0 ? Math.round(bateram / acomp * 100) : '—';
 
   document.getElementById('metas-kpi-total').textContent = total;
   document.getElementById('metas-kpi-acomp').textContent = acomp || '—';
-  document.getElementById('metas-kpi-bateram').textContent = `${bateramUn}/${totalUn} un.`;
-  document.getElementById('metas-kpi-pct').textContent = totalUn > 0 ? pct + '%' : '—';
+  document.getElementById('metas-kpi-bateram').textContent = bateram;
+  document.getElementById('metas-kpi-pct').textContent = acomp > 0 ? pct + '%' : '—';
 
   const clienteRow = (c) => {
     const n = c.num_unidades > 1 ? c.num_unidades : 0;
