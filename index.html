@@ -4167,14 +4167,10 @@ async function virarMes() {
 
   // Detecta o mês a ser fechado: se ainda estamos no mês corrente, fecha o corrente;
   // se já estamos no próximo mês (ex: agosto fechando julho), usa o mês anterior
-  // Na prática: busca qual mês tem visitas mais recentes no cache
-  const nowYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  // F5 sempre fecha o mês anterior (fluxo: pressionar em outubro fecha setembro)
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
-
-  // Usa mês anterior se não houver visitas no mês atual (significa que estamos virando mês já passado)
-  const hasCurrentMonthVisits = allVisitsCache.some(v => v.date && v.date.startsWith(nowYM));
-  const ym = hasCurrentMonthVisits ? nowYM : prevYM;
+  const ym = prevYM;
 
   const ymDate = new Date(ym + '-01');
   const monthLabel = ymDate.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
