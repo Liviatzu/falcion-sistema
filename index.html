@@ -3307,16 +3307,18 @@ window.toggleMetaUnit = async function(clientId, ym, docId, unitIndex, totalUnit
 
 window.editNumUnidades = async function(clientId, el) {
   const atual = el.textContent.replace(' un.','').replace('+ un.','').trim();
-  const novo = prompt('Número de unidades:', atual === '+ un.' ? '' : atual);
+  const novo = prompt('Número de unidades/lojas:', isNaN(parseInt(atual)) ? '' : atual);
   if (novo === null) return;
   const n = parseInt(novo);
+  const c = allClients.find(x => x.id === clientId);
   if (isNaN(n) || n < 1) {
     await db.collection('clients').doc(clientId).update({ num_unidades: firebase.firestore.FieldValue.delete() });
-    el.textContent = '+ un.';
+    if (c) delete c.num_unidades;
   } else {
     await db.collection('clients').doc(clientId).update({ num_unidades: n });
-    el.textContent = n + ' un.';
+    if (c) c.num_unidades = n;
   }
+  await loadMetas();
 };
 
 async function loadMetasHistorico() {
