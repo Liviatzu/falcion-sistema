@@ -3114,78 +3114,98 @@ async function initMetas() {
   await loadMetasHistorico();
 }
 
+const metasExpandidos = new Set();
+
 async function loadMetas() {
   const ym = metasYMStr();
   document.getElementById('metas-mes-label').textContent = `${MESES_PT[metasYM.month-1]} ${metasYM.year}`;
 
-  // Buscar checks salvos do mês
   const snap = await db.collection('metas_mensais').where('month','==',ym).get();
-  const checked = {};
-  snap.docs.forEach(d => { checked[d.data().client_id] = d.id; });
+  // metasDocs: client_id -> { docId, units (array|null), hit }
+  const metasDocs = {};
+  snap.docs.forEach(d => {
+    const data = d.data();
+    metasDocs[data.client_id] = { docId: d.id, units: data.units || null, hit: data.hit };
+  });
 
   const clients = allClients.filter(c=>c.status!=='done').sort((a,b)=>a.name.localeCompare(b.name));
   const total = clients.length;
-  const bateram = clients.filter(c=>checked[c.id]).length;
 
-  // Clientes acompanhados (lista por mês)
+  // KPI: conta por unidades
+  let totalUn = 0, bateramUn = 0;
+  clients.forEach(c => {
+    const n = c.num_unidades > 1 ? c.num_unidades : 1;
+    totalUn += n;
+    const entry = metasDocs[c.id];
+    if (entry) {
+      if (entry.units) bateramUn += entry.units.filter(Boolean).length;
+      else bateramUn += 1;
+    }
+  });
+
   const cfgSnap = await db.collection('metas_config').doc(ym).get();
   metasAcompClientes = cfgSnap.exists ? (cfgSnap.data().clientes_acompanhados || []) : [];
   renderMetasAcompList();
 
   const acomp = metasAcompClientes.filter(x=>x).length;
-  const pct = acomp > 0 ? Math.round(bateram / acomp * 100) : '—';
+  const bateram = clients.filter(c=>metasDocs[c.id]).length;
+  const pct = totalUn > 0 ? Math.round(bateramUn / totalUn * 100) : '—';
 
   document.getElementById('metas-kpi-total').textContent = total;
   document.getElementById('metas-kpi-acomp').textContent = acomp || '—';
-  document.getElementById('metas-kpi-bateram').textContent = bateram;
-  document.getElementById('metas-kpi-pct').textContent = acomp > 0 ? pct + '%' : '—';
-
-  // Agrupa por rede
-  const grupos = {};
-  clients.forEach(c => {
-    const g = c.rede ? c.rede.trim() : '';
-    if (!grupos[g]) grupos[g] = [];
-    grupos[g].push(c);
-  });
+  document.getElementById('metas-kpi-bateram').textContent = `${bateramUn}/${totalUn} un.`;
+  document.getElementById('metas-kpi-pct').textContent = totalUn > 0 ? pct + '%' : '—';
 
   const clienteRow = (c) => {
-    const hit = !!checked[c.id];
-    const docId = checked[c.id] || '';
-    const un = c.num_unidades || '';
-    const unBadge = `<span onclick="editNumUnidades('${c.id}',this)" title="Clique para editar nº de unidades"
-      style="font-size:0.72rem;color:#555;background:#f0f0f0;border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;flex-shrink:0">${un ? un+' un.' : '+ un.'}</span>`;
-    return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border-radius:8px;margin-bottom:0.4rem;background:${hit?'#D5F5E3':'var(--white)'};border:1.5px solid ${hit?'#27AE60':'var(--gray-light)'}">
-      <input type="checkbox" ${hit?'checked':''} onchange="toggleMeta('${c.id}','${ym}','${docId}',this)"
-        style="width:18px;height:18px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
-      <span style="flex:1;font-size:0.88rem;font-weight:${hit?'700':'500'};color:${hit?'#1A8A4A':'var(--navy)'}">
-        ${hit?'✅ ':''}${c.name}
-      </span>
-      ${unBadge}
-    </div>`;
+    const n = c.num_unidades > 1 ? c.num_unidades : 0;
+    const entry = metasDocs[c.id];
+
+    if (n > 1) {
+      // Cliente com múltiplas unidades
+      const units = entry ? (entry.units || Array(n).fill(false)) : Array(n).fill(false);
+      const hitCount = units.filter(Boolean).length;
+      const pctC = Math.round(hitCount / n * 100);
+      const cor = hitCount === n ? '#27AE60' : hitCount === 0 ? '#E74C3C' : '#B7600B';
+      const expanded = metasExpandidos.has(c.id);
+      const docId = entry ? entry.docId : '';
+
+      const subRows = units.map((checked, i) => `
+        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.35rem 0.75rem;border-top:1px solid #e5e7eb">
+          <input type="checkbox" ${checked?'checked':''} onchange="toggleMetaUnit('${c.id}','${ym}','${docId}',${i},${n},this)"
+            style="width:16px;height:16px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
+          <span style="font-size:0.82rem;color:${checked?'#1A8A4A':'var(--navy)'}">Loja ${i+1}</span>
+        </div>`).join('');
+
+      return `<div style="border-radius:8px;margin-bottom:0.4rem;overflow:hidden;border:1.5px solid ${hitCount===n?'#27AE60':hitCount>0?'#d97706':'var(--gray-light)'}">
+        <div onclick="toggleMetasExpand('${c.id}')" style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:${hitCount===n?'#D5F5E3':hitCount>0?'#FEF3C7':'var(--white)'};cursor:pointer">
+          <span style="font-size:1rem;line-height:1">${expanded?'▾':'▸'}</span>
+          <span style="flex:1;font-size:0.88rem;font-weight:600;color:${hitCount===n?'#1A8A4A':'var(--navy)'}">
+            ${c.name}
+          </span>
+          <span style="font-size:0.75rem;font-weight:700;color:${cor};background:rgba(0,0,0,0.06);border-radius:6px;padding:2px 8px">
+            ${hitCount}/${n} · ${pctC}%
+          </span>
+        </div>
+        <div style="display:${expanded?'block':'none'}">
+          ${subRows}
+        </div>
+      </div>`;
+    } else {
+      // Cliente simples (sem unidades)
+      const hit = !!entry;
+      const docId = entry ? entry.docId : '';
+      return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border-radius:8px;margin-bottom:0.4rem;background:${hit?'#D5F5E3':'var(--white)'};border:1.5px solid ${hit?'#27AE60':'var(--gray-light)'}">
+        <input type="checkbox" ${hit?'checked':''} onchange="toggleMeta('${c.id}','${ym}','${docId}',this)"
+          style="width:18px;height:18px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
+        <span style="flex:1;font-size:0.88rem;font-weight:${hit?'700':'500'};color:${hit?'#1A8A4A':'var(--navy)'}">
+          ${hit?'✅ ':''}${c.name}
+        </span>
+      </div>`;
+    }
   };
 
   let html = '';
-  // Primeiro os clientes SEM rede
-  if (grupos['']) {
-    html += grupos[''].map(clienteRow).join('');
-  }
-  // Depois os grupos de rede
-  Object.keys(grupos).filter(g=>g).sort().forEach(g => {
-    const lista = grupos[g];
-    const total = lista.length;
-    const bateram_g = lista.filter(c=>checked[c.id]).length;
-    const pctG = Math.round(bateram_g/total*100);
-    const cor = bateram_g === total ? '#27AE60' : bateram_g === 0 ? '#E74C3C' : '#B7600B';
-    html += `<div style="margin-bottom:0.5rem">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.75rem;background:var(--navy);border-radius:8px 8px 0 0;margin-bottom:0">
-        <span style="font-size:0.75rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.05em">🏢 ${g}</span>
-        <span style="font-size:0.75rem;font-weight:700;color:#fff">${bateram_g}/${total} bateram · <span style="color:${cor}">${pctG}%</span></span>
-      </div>
-      <div style="border:1.5px solid var(--navy);border-top:none;border-radius:0 0 8px 8px;padding:0.4rem 0.4rem 0">
-        ${lista.map(clienteRow).join('')}
-      </div>
-    </div>`;
-  });
+  clients.forEach(c => { html += clienteRow(c); });
   document.getElementById('metas-list').innerHTML = html;
 }
 
@@ -3260,6 +3280,33 @@ async function toggleMeta(clientId, ym, docId, el) {
     await loadMetas();
   }
 }
+
+window.toggleMetasExpand = function(clientId) {
+  if (metasExpandidos.has(clientId)) metasExpandidos.delete(clientId);
+  else metasExpandidos.add(clientId);
+  loadMetas();
+};
+
+window.toggleMetaUnit = async function(clientId, ym, docId, unitIndex, totalUnits, el) {
+  // Busca doc atual ou cria array vazio
+  let units;
+  if (docId) {
+    const doc = await db.collection('metas_mensais').doc(docId).get();
+    units = doc.exists ? (doc.data().units || Array(totalUnits).fill(false)) : Array(totalUnits).fill(false);
+  } else {
+    units = Array(totalUnits).fill(false);
+  }
+  units[unitIndex] = el.checked;
+  const hit = units.filter(Boolean).length;
+
+  if (docId) {
+    await db.collection('metas_mensais').doc(docId).update({ units, hit });
+  } else {
+    await db.collection('metas_mensais').add({ client_id: clientId, month: ym, units, hit });
+  }
+  metasExpandidos.add(clientId); // mantém expandido após salvar
+  await loadMetas();
+};
 
 window.editNumUnidades = async function(clientId, el) {
   const atual = el.textContent.replace(' un.','').replace('+ un.','').trim();
