@@ -4462,23 +4462,33 @@ async function loadReport() {
   const curYM3 = `${now3.getFullYear()}-${String(now3.getMonth()+1).padStart(2,'0')}`;
   const isMesAtual = ym === curYM3;
 
-  const [cSnap, vSnap, hSnap] = await Promise.all([
+  // Calcula mês seguinte para fallback
+  const [ymAno, ymMes] = ym.split('-').map(Number);
+  const nextDate = new Date(ymAno, ymMes, 1); // mês seguinte
+  const ymNext = `${nextDate.getFullYear()}-${String(nextDate.getMonth()+1).padStart(2,'0')}`;
+
+  const [cSnap, vSnap, hSnap, hSnapNext] = await Promise.all([
     db.collection('clients').where('status','==','active').get(),
     db.collection('visits').get(),
-    isMesAtual ? Promise.resolve(null) : db.collection('historico_mensal').where('month','==',ym).get()
+    isMesAtual ? Promise.resolve(null) : db.collection('historico_mensal').where('month','==',ym).get(),
+    isMesAtual ? Promise.resolve(null) : db.collection('historico_mensal').where('month','==',ymNext).get()
   ]);
 
-  // Monta mapa client_id -> initial_hours do mês fechado
+  // Mapa client_id -> initial_hours: prefere snapshot do próprio mês, fallback = próximo mês
   const historicoInitial = {};
-  if (hSnap) {
-    console.log('[Relatório] historico_mensal docs encontrados para', ym, ':', hSnap.docs.length);
-    hSnap.docs.forEach(d => {
+  if (hSnapNext) {
+    hSnapNext.docs.forEach(d => {
       const h = d.data();
-      console.log('[Relatório] histórico:', h.client_name, h.month, h.initial_hours);
+      // initial_hours do mês seguinte = o valor que estava vigente no mês atual (antes do F5)
       if (h.client_id) historicoInitial[h.client_id] = h.initial_hours;
     });
-  } else {
-    console.log('[Relatório] mês atual, usando initial_hours do cliente');
+  }
+  if (hSnap) {
+    hSnap.docs.forEach(d => {
+      const h = d.data();
+      // snapshot do próprio mês tem prioridade
+      if (h.client_id) historicoInitial[h.client_id] = h.initial_hours;
+    });
   }
 
   const clients = cSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
@@ -4550,7 +4560,8 @@ async function loadReport() {
     </div>`).join('');
 
   // Por consultor
-  document.getElementById('report-consultores').innerHTML = Object.entries(porConsultor)
+  const elConsultores = document.getElementById('report-consultores');
+  if (elConsultores) elConsultores.innerHTML = Object.entries(porConsultor)
     .sort((a,b)=>b[1]-a[1])
     .map(([nome,h])=>`
       <div style="background:#fff;border:1.5px solid var(--gray-light);border-radius:10px;padding:0.6rem 1rem;display:flex;align-items:center;gap:0.7rem">
@@ -4562,7 +4573,8 @@ async function loadReport() {
       </div>`).join('');
 
   // Alertas excederam
-  document.getElementById('report-excederam').innerHTML = excederam.length
+  const elExced = document.getElementById('report-excederam');
+  if (elExced) elExced.innerHTML = excederam.length
     ? excederam.sort((a,b)=>a.balance-b.balance).map(e=>`
         <div style="background:#fff3f3;border:1px solid #fcc;border-radius:8px;padding:0.5rem 0.8rem;margin-bottom:0.4rem;font-size:0.82rem">
           <strong>${e.name}</strong> <span style="color:var(--danger);font-weight:700">${fmtHHMM(e.balance)}</span>
@@ -4570,7 +4582,8 @@ async function loadReport() {
     : '<div style="font-size:0.82rem;color:var(--gray)">Nenhum cliente excedeu.</div>';
 
   // Alertas sobrou
-  document.getElementById('report-sobrou').innerHTML = sobrou.length
+  const elSobrou = document.getElementById('report-sobrou');
+  if (elSobrou) elSobrou.innerHTML = sobrou.length
     ? sobrou.sort((a,b)=>b.balance-a.balance).map(e=>`
         <div style="background:#f3fff6;border:1px solid #b7e8c0;border-radius:8px;padding:0.5rem 0.8rem;margin-bottom:0.4rem;font-size:0.82rem">
           <strong>${e.name}</strong> <span style="color:var(--success);font-weight:700">+${fmtHHMM(e.balance)}</span>
