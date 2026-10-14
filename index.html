@@ -891,6 +891,7 @@ tr:hover td{background:#F8FAFC}
     </div>
     <input type="hidden" id="edit-client-id">
     <div class="form-group"><label>Nome *</label><input type="text" id="c-name" placeholder="Nome do cliente ou empresa"></div>
+    <div class="form-group"><label>Rede / Grupo</label><input type="text" id="c-rede" placeholder="Ex: Albano, Conviva, PJR (deixe vazio se não tiver)"></div>
     <div class="form-row">
       <div class="form-group"><label>Status</label>
         <select id="c-status">
@@ -2260,6 +2261,7 @@ function openClientModal() {
   document.getElementById('modal-client-title').textContent = 'Novo Cliente';
   document.getElementById('edit-client-id').value = '';
   document.getElementById('c-name').value = '';
+  document.getElementById('c-rede').value = '';
   document.getElementById('c-status').value = 'active';
   document.getElementById('c-quota').value = '';
   document.getElementById('c-initial').value = '';
@@ -2271,6 +2273,7 @@ function openEditClientModal() {
   document.getElementById('modal-client-title').textContent = 'Editar Cliente';
   document.getElementById('edit-client-id').value = currentClientId;
   document.getElementById('c-name').value = currentClientData.name||'';
+  document.getElementById('c-rede').value = currentClientData.rede||'';
   document.getElementById('c-status').value = currentClientData.status||'active';
   document.getElementById('c-quota').value = currentClientData.monthly_quota_hours||'';
   document.getElementById('c-initial').value = currentClientData.initial_hours||'';
@@ -2282,6 +2285,7 @@ async function saveClient() {
   if (!name) { toast('Informe o nome do cliente','error'); return; }
   const data = {
     name,
+    rede: document.getElementById('c-rede').value.trim(),
     status: document.getElementById('c-status').value,
     monthly_quota_hours: document.getElementById('c-quota').value.trim(),
     initial_hours: document.getElementById('c-initial').value.trim(),
@@ -3136,18 +3140,49 @@ async function loadMetas() {
   document.getElementById('metas-kpi-bateram').textContent = bateram;
   document.getElementById('metas-kpi-pct').textContent = acomp > 0 ? pct + '%' : '—';
 
-  document.getElementById('metas-list').innerHTML = clients.map(c => {
+  // Agrupa por rede
+  const grupos = {};
+  clients.forEach(c => {
+    const g = c.rede ? c.rede.trim() : '';
+    if (!grupos[g]) grupos[g] = [];
+    grupos[g].push(c);
+  });
+
+  const clienteRow = (c) => {
     const hit = !!checked[c.id];
     const docId = checked[c.id] || '';
-    return `
-    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border-radius:8px;margin-bottom:0.4rem;background:${hit?'#D5F5E3':'var(--white)'};border:1.5px solid ${hit?'#27AE60':'var(--gray-light)'}">
+    return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border-radius:8px;margin-bottom:0.4rem;background:${hit?'#D5F5E3':'var(--white)'};border:1.5px solid ${hit?'#27AE60':'var(--gray-light)'}">
       <input type="checkbox" ${hit?'checked':''} onchange="toggleMeta('${c.id}','${ym}','${docId}',this)"
         style="width:18px;height:18px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
       <span style="flex:1;font-size:0.88rem;font-weight:${hit?'700':'500'};color:${hit?'#1A8A4A':'var(--navy)'}">
         ${hit?'✅ ':''}${c.name}
       </span>
     </div>`;
-  }).join('');
+  };
+
+  let html = '';
+  // Primeiro os clientes SEM rede
+  if (grupos['']) {
+    html += grupos[''].map(clienteRow).join('');
+  }
+  // Depois os grupos de rede
+  Object.keys(grupos).filter(g=>g).sort().forEach(g => {
+    const lista = grupos[g];
+    const total = lista.length;
+    const bateram_g = lista.filter(c=>checked[c.id]).length;
+    const pctG = Math.round(bateram_g/total*100);
+    const cor = bateram_g === total ? '#27AE60' : bateram_g === 0 ? '#E74C3C' : '#B7600B';
+    html += `<div style="margin-bottom:0.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.75rem;background:var(--navy);border-radius:8px 8px 0 0;margin-bottom:0">
+        <span style="font-size:0.75rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.05em">🏢 ${g}</span>
+        <span style="font-size:0.75rem;font-weight:700;color:#fff">${bateram_g}/${total} bateram · <span style="color:${cor}">${pctG}%</span></span>
+      </div>
+      <div style="border:1.5px solid var(--navy);border-top:none;border-radius:0 0 8px 8px;padding:0.4rem 0.4rem 0">
+        ${lista.map(clienteRow).join('')}
+      </div>
+    </div>`;
+  });
+  document.getElementById('metas-list').innerHTML = html;
 }
 
 let metasAcompClientes = []; // nomes dos clientes acompanhados no mês atual
