@@ -3151,12 +3151,16 @@ async function loadMetas() {
   const clienteRow = (c) => {
     const hit = !!checked[c.id];
     const docId = checked[c.id] || '';
+    const un = c.num_unidades || '';
+    const unBadge = `<span onclick="editNumUnidades('${c.id}',this)" title="Clique para editar nº de unidades"
+      style="font-size:0.72rem;color:#555;background:#f0f0f0;border-radius:4px;padding:1px 6px;cursor:pointer;white-space:nowrap;flex-shrink:0">${un ? un+' un.' : '+ un.'}</span>`;
     return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border-radius:8px;margin-bottom:0.4rem;background:${hit?'#D5F5E3':'var(--white)'};border:1.5px solid ${hit?'#27AE60':'var(--gray-light)'}">
       <input type="checkbox" ${hit?'checked':''} onchange="toggleMeta('${c.id}','${ym}','${docId}',this)"
         style="width:18px;height:18px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
       <span style="flex:1;font-size:0.88rem;font-weight:${hit?'700':'500'};color:${hit?'#1A8A4A':'var(--navy)'}">
         ${hit?'✅ ':''}${c.name}
       </span>
+      ${unBadge}
     </div>`;
   };
 
@@ -3256,6 +3260,20 @@ async function toggleMeta(clientId, ym, docId, el) {
     await loadMetas();
   }
 }
+
+window.editNumUnidades = async function(clientId, el) {
+  const atual = el.textContent.replace(' un.','').replace('+ un.','').trim();
+  const novo = prompt('Número de unidades:', atual === '+ un.' ? '' : atual);
+  if (novo === null) return;
+  const n = parseInt(novo);
+  if (isNaN(n) || n < 1) {
+    await db.collection('clients').doc(clientId).update({ num_unidades: firebase.firestore.FieldValue.delete() });
+    el.textContent = '+ un.';
+  } else {
+    await db.collection('clients').doc(clientId).update({ num_unidades: n });
+    el.textContent = n + ' un.';
+  }
+};
 
 async function loadMetasHistorico() {
   const [snapMetas, snapCfg] = await Promise.all([
