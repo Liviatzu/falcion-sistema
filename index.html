@@ -2199,7 +2199,7 @@ function renderClients(list) {
     const logoHtml = c.logo_data
       ? `<img src="${c.logo_data}" style="width:56px;height:56px;object-fit:contain;border-radius:8px">`
       : `<div style="width:56px;height:56px;border-radius:10px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:#fff">${ini}</div>`;
-    const cronHrs = clientCronHoras[c.id]||0;
+    const cronHrs = clientTaskHours[c.id]||0;
     return `
     <div class="client-card-new" onclick="openClientDetail('${c.id}')">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0.7rem">
@@ -2224,8 +2224,8 @@ function renderClients(list) {
         <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem">
-        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. prog. cronograma</span>
-        <span style="font-size:0.78rem;font-weight:700;color:${cronHrs>0?'#7C3AED':'var(--gray)'}">${fmtHHMM(cronHrs)}</span>
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. prog. tarefas</span>
+        <span style="font-size:0.78rem;font-weight:700;color:${(()=>{const q=parseHHMM(c.monthly_quota_hours)||0;if(!cronHrs)return'var(--gray)';if(cronHrs>q+0.01)return'#E74C3C';if(cronHrs>=q-0.01)return'#27AE60';return'#E67E22';})()}">${fmtHHMM(cronHrs)}${(()=>{const q=parseHHMM(c.monthly_quota_hours)||0;if(!cronHrs||!q)return'';if(cronHrs>q+0.01)return' ▲';if(cronHrs>=q-0.01)return' ✓';return' ▼';})()}</span>
       </div>
       <div style="margin-top:0.5rem;display:flex;justify-content:space-between;align-items:center">
         ${c.drive_url ? `<a href="${c.drive_url}" target="_blank" onclick="event.stopPropagation()" style="font-size:0.75rem;color:#1A73E8;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:0.3rem">📁 Drive</a>` : `<span></span>`}
