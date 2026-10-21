@@ -2948,9 +2948,17 @@ async function loadAllTasks() {
     .filter(t => !t.personal || t.personal_owner === session.name);
   // popular filtro de consultor
   const fcSel = document.getElementById('task-filter-consultor');
+  const isMasterOrGestor = session && (session.role === 'master' || session.name === 'Marília Falcioni');
   if (fcSel) {
     fcSel.innerHTML = '<option value="">Todos consultores</option>' +
       consultoresCache.map(c=>`<option value="${c}">${c}</option>`).join('');
+    // Não-master: fixa filtro no próprio nome e oculta o select
+    if (!isMasterOrGestor) {
+      fcSel.value = session.name;
+      fcSel.style.display = 'none';
+    } else {
+      fcSel.style.display = '';
+    }
   }
   // popular filtro de empresa
   const feSel = document.getElementById('task-filter-empresa');
@@ -2971,11 +2979,17 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   const now = new Date();
   const curYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
+  const isMasterG = session && (session.role === 'master' || session.name === 'Marília Falcioni');
   // Filtrar: tarefas ativas (não concluídas)
   const activeList = allList.filter(t => {
     if ((t.status||'pending') === 'done') return false;
     if (!showAllMonths && t.due && !t.due.startsWith(curYM)) return false;
     if (t.personal && t.personal_owner !== session.name) return false;
+    // Não-master vê só suas tarefas
+    if (!isMasterG) {
+      const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+      if (arr.length && !arr.includes(session.name)) return false;
+    }
     return true;
   }).sort((a,b)=>{
     const o={pending:0,in_progress:1,suspended:2};
