@@ -3583,13 +3583,7 @@ window.toggleSubtask = async function(taskId, subId) {
     }
   }
 
-  // auto-completar tarefa pai se todas concluídas
-  if (subtasks.length > 0 && subtasks.every(s=>s.done)) {
-    await db.collection('tasks').doc(taskId).update({ status: 'done' });
-    if (t) t.status = 'done';
-    toast('✅ Todas as subtarefas concluídas! Tarefa marcada como Concluída.');
-    if (t && t.client_id) syncTaskAsana(taskId, t.client_id, {...t, status:'done'}, 'update').catch(()=>{});
-  }
+  // NÃO auto-completa a tarefa pai — consultor decide manualmente quando fechar a tarefa
   if (currentClientId) loadClientTasks(currentClientId);
   else renderTasks(allTasks);
   // Sync Asana: marca subtarefa como concluída/aberta
@@ -4048,17 +4042,21 @@ async function loadCronograma(clientId, targetMonth) {
     renderCronograma();
     return;
   }
-  // Mês atual sem doc salvo → em branco para Débora preencher
-  if (targetMonth === curYM2) {
-    cronRows = [{ fase:'', responsavel:'', inicio:'', fim:'', status:'A Fazer', obs:'' }];
-    renderCronograma();
-    return;
-  }
-  // Mês passado sem doc salvo → gera das tarefas daquele mês
+  // Sem doc salvo → gera das tarefas do mês (mês atual ou anterior)
   const statusMap = { pending:'A Fazer', in_progress:'Em Andamento', done:'Concluído' };
   const snap = await db.collection('tasks').where('client_id','==',clientId).get();
-  const taskRows = snap.docs.map(d=>d.data())
-    .filter(t => t.due && t.due.startsWith(targetMonth))
+  // Para o mês atual: inclui tarefas sem prazo ou com prazo no mês atual e não concluídas
+  const allTaskData = snap.docs.map(d=>d.data());
+  const taskRows = allTaskData
+    .filter(t => {
+      if (targetMonth === curYM2) {
+        // mês atual: tarefas ativas (não concluídas) do mês ou sem prazo
+        if ((t.status||'pending') === 'done') return false;
+        return !t.due || t.due.startsWith(targetMonth);
+      }
+      // outros meses: só as com prazo naquele mês
+      return t.due && t.due.startsWith(targetMonth);
+    })
     .sort((a,b)=>(a.title||'').localeCompare(b.title||''))
     .map(t=>({
       fase: t.title||'',
