@@ -5339,16 +5339,24 @@ function renderProcessosGrid() {
   }
   grid.innerHTML = processosCache.map(p => {
     const etapas = p.etapas || [];
-    const etapasHtml = etapas.map((e, i) => `
-      <div id="etapa-row-${p.id}-${i}" style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem">
-        <span style="color:var(--gold);font-size:0.8rem;flex-shrink:0">${i+1}.</span>
+    const doneSteps = p.done_steps || [];
+    const doneCount = doneSteps.length;
+    const pct = etapas.length ? Math.round(doneCount/etapas.length*100) : 0;
+    const barColor = pct===100 ? '#27AE60' : pct>0 ? '#E67E22' : 'var(--gray-light)';
+    const etapasHtml = etapas.map((e, i) => {
+      const eId = e.id || i;
+      const checked = doneSteps.includes(String(eId));
+      return `
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem">
+        <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();window.toggleEtapaCheck('${p.id}','${eId}',this.checked)"
+          style="width:15px;height:15px;cursor:pointer;accent-color:var(--gold);flex-shrink:0">
         <input type="text" value="${(e.label||e).replace(/"/g,'&quot;')}"
           oninput="window.updateEtapaInline('${p.id}',${i},this.value)"
           onblur="window.saveProcessoInline('${p.id}')"
-          style="flex:1;padding:0.28rem 0.5rem;border:1.5px solid var(--gray-light);border-radius:6px;font-size:0.82rem;background:var(--bg);color:var(--navy)">
+          style="flex:1;padding:0.28rem 0.5rem;border:1.5px solid var(--gray-light);border-radius:6px;font-size:0.82rem;background:var(--bg);color:${checked?'var(--gray)':'var(--navy)'};text-decoration:${checked?'line-through':'none'}">
         <button onclick="window.removeEtapaInline('${p.id}',${i})" title="Remover etapa"
           style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:0.9rem;padding:0 0.1rem;flex-shrink:0">✕</button>
-      </div>`).join('');
+      </div>`;}).join('');
 
     return `<div class="card" style="border-top:4px solid var(--gold)" id="proc-card-${p.id}">
       <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">
@@ -5364,6 +5372,15 @@ function renderProcessosGrid() {
         <button onclick="window.deleteProcessoInline('${p.id}')" title="Excluir processo"
           style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:0.85rem;opacity:0.6;flex-shrink:0" title="Excluir">🗑️</button>
       </div>
+      ${etapas.length ? `<div style="margin-bottom:0.6rem">
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--gray);margin-bottom:0.25rem">
+          <span>${doneCount} de ${etapas.length} etapa${etapas.length!==1?'s':''}</span>
+          <span style="font-weight:700;color:${barColor}">${pct}%</span>
+        </div>
+        <div style="background:#e8edf2;border-radius:6px;height:6px;overflow:hidden">
+          <div style="width:${pct}%;background:${barColor};height:100%;border-radius:6px;transition:width 0.3s"></div>
+        </div>
+      </div>` : ''}
       <div id="etapas-list-${p.id}" style="display:flex;flex-direction:column;gap:0">
         ${etapasHtml || '<p style="color:var(--gray);font-size:0.8rem;margin:0 0 0.4rem">Nenhuma etapa ainda.</p>'}
       </div>
@@ -5376,6 +5393,18 @@ function renderProcessosGrid() {
     </div>`;
   }).join('');
 }
+
+window.toggleEtapaCheck = async function(pid, etapaId, checked) {
+  const p = processosCache.find(x => x.id === pid);
+  if (!p) return;
+  let doneSteps = [...(p.done_steps || [])];
+  const key = String(etapaId);
+  if (checked) { if (!doneSteps.includes(key)) doneSteps.push(key); }
+  else { doneSteps = doneSteps.filter(k => k !== key); }
+  p.done_steps = doneSteps;
+  await db.collection('processos').doc(pid).update({ done_steps: doneSteps });
+  renderProcessosGrid();
+};
 
 window.updateProcessoField = function(pid, field, val) {
   const p = processosCache.find(x => x.id === pid);
