@@ -3158,58 +3158,109 @@ async function loadMetas() {
   document.getElementById('metas-kpi-bateram').textContent = bateram;
   document.getElementById('metas-kpi-pct').textContent = total > 0 ? pct + '%' : '—';
 
-  const clienteRow = (c) => {
+  const mesLabel = `${MESES_PT[metasYM.month-1]} ${metasYM.year}`;
+
+  const clienteCard = (c) => {
     const n = c.num_unidades > 1 ? c.num_unidades : 0;
     const entry = metasDocs[c.id];
+    const docId = entry ? entry.docId : '';
+    const valorMeta = entry ? (entry.valor_meta || '') : '';
+    const realizado = entry ? (entry.realizado || '') : '';
+    const destaque = entry ? !!entry.destaque : false;
+    const hit = entry ? (entry.units ? entry.units.some(Boolean) : true) : false;
 
+    // % de realização
+    const vmNum = parseFloat(String(valorMeta).replace(',','.')) || 0;
+    const rlNum = parseFloat(String(realizado).replace(',','.')) || 0;
+    const pctReal = vmNum > 0 ? Math.min(Math.round(rlNum / vmNum * 100), 999) : 0;
+    const pctColor = pctReal >= 100 ? '#27AE60' : pctReal >= 70 ? '#F39C12' : '#E74C3C';
+
+    // Logo
+    const ini = clientInitials(c.name);
+    const bg  = clientColor(c.name);
+    const logoHtml = c.logo_data
+      ? `<img src="${c.logo_data}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;flex-shrink:0">`
+      : `<div style="width:32px;height:32px;border-radius:6px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:#fff;flex-shrink:0">${ini}</div>`;
+
+    // Blocos multi-unidade
+    let unidadesHtml = '';
     if (n > 1) {
-      // Cliente com múltiplas unidades
       const units = entry ? (entry.units || Array(n).fill(false)) : Array(n).fill(false);
       const hitCount = units.filter(Boolean).length;
-      const pctC = Math.round(hitCount / n * 100);
-      const cor = hitCount === n ? '#27AE60' : hitCount === 0 ? '#E74C3C' : '#B7600B';
       const expanded = metasExpandidos.has(c.id);
-      const docId = entry ? entry.docId : '';
-
+      const cor = hitCount === n ? '#27AE60' : hitCount === 0 ? '#E74C3C' : '#B7600B';
       const subRows = units.map((checked, i) => `
-        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.35rem 0.75rem;border-top:1px solid #e5e7eb">
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0.6rem;border-top:1px solid #e5e7eb">
           <input type="checkbox" ${checked?'checked':''} onchange="toggleMetaUnit('${c.id}','${ym}','${docId}',${i},${n},this)"
-            style="width:16px;height:16px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
-          <span style="font-size:0.82rem;color:${checked?'#1A8A4A':'var(--navy)'}">Loja ${i+1}</span>
+            style="width:15px;height:15px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
+          <span style="font-size:0.8rem;color:${checked?'#1A8A4A':'var(--navy)'}">Loja ${i+1}</span>
         </div>`).join('');
-
-      return `<div style="border-radius:8px;margin-bottom:0.4rem;overflow:hidden;border:1.5px solid ${hitCount===n?'#27AE60':hitCount>0?'#d97706':'var(--gray-light)'}">
-        <div onclick="toggleMetasExpand('${c.id}')" style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:${hitCount===n?'#D5F5E3':hitCount>0?'#FEF3C7':'var(--white)'};cursor:pointer">
-          <span style="font-size:1rem;line-height:1">${expanded?'▾':'▸'}</span>
-          <span style="flex:1;font-size:0.88rem;font-weight:600;color:${hitCount===n?'#1A8A4A':'var(--navy)'}">
-            ${c.name}
-          </span>
-          <span style="font-size:0.75rem;font-weight:700;color:${cor};background:rgba(0,0,0,0.06);border-radius:6px;padding:2px 8px">
-            ${hitCount}/${n} · ${pctC}%
-          </span>
-        </div>
-        <div style="display:${expanded?'block':'none'}">
-          ${subRows}
-        </div>
-      </div>`;
+      unidadesHtml = `
+        <div style="border:1px solid ${cor}33;border-radius:6px;overflow:hidden;margin-top:0.5rem">
+          <div onclick="toggleMetasExpand('${c.id}')" style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.6rem;background:${cor}11;cursor:pointer">
+            <span style="font-size:0.85rem">${expanded?'▾':'▸'}</span>
+            <span style="flex:1;font-size:0.78rem;font-weight:600;color:${cor}">${hitCount}/${n} unidades bateram</span>
+          </div>
+          <div style="display:${expanded?'block':'none'}">${subRows}</div>
+        </div>`;
     } else {
-      // Cliente simples (sem unidades)
-      const hit = !!entry;
-      const docId = entry ? entry.docId : '';
-      return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border-radius:8px;margin-bottom:0.4rem;background:${hit?'#D5F5E3':'var(--white)'};border:1.5px solid ${hit?'#27AE60':'var(--gray-light)'}">
-        <input type="checkbox" ${hit?'checked':''} onchange="toggleMeta('${c.id}','${ym}','${docId}',this)"
-          style="width:18px;height:18px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
-        <span style="flex:1;font-size:0.88rem;font-weight:${hit?'700':'500'};color:${hit?'#1A8A4A':'var(--navy)'}">
-          ${hit?'✅ ':''}${c.name}
-        </span>
-        <span onclick="editNumUnidades('${c.id}',this)" title="Definir nº de lojas/unidades"
-          style="font-size:0.7rem;color:#999;background:#f5f5f5;border-radius:4px;padding:1px 6px;cursor:pointer;flex-shrink:0">+ un.</span>
-      </div>`;
+      // Simples: checkbox "bateu a meta"
+      unidadesHtml = `
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem">
+          <input type="checkbox" ${hit?'checked':''} onchange="toggleMeta('${c.id}','${ym}','${docId}',this)"
+            style="width:16px;height:16px;accent-color:#27AE60;cursor:pointer;flex-shrink:0">
+          <span style="font-size:0.8rem;font-weight:600;color:${hit?'#1A8A4A':'var(--gray)'}">
+            ${hit ? '✅ Bateu a meta' : 'Bateu a meta?'}
+          </span>
+          <span onclick="editNumUnidades('${c.id}',this)" title="Definir nº de lojas/unidades"
+            style="font-size:0.68rem;color:#999;background:#f5f5f5;border-radius:4px;padding:1px 5px;cursor:pointer;margin-left:auto">+ un.</span>
+        </div>`;
     }
+
+    const cardBorder = hit ? '#27AE60' : destaque ? '#F39C12' : 'var(--gray-light)';
+    const cardBg = hit ? '#F0FBF5' : destaque ? '#FFFBF0' : 'var(--white)';
+
+    return `<div style="background:${cardBg};border:1.5px solid ${cardBorder};border-radius:10px;padding:0.8rem 0.9rem">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
+        ${logoHtml}
+        <span style="flex:1;font-size:0.85rem;font-weight:700;color:var(--navy);line-height:1.2">${c.name}</span>
+        <button onclick="toggleMetaDestaque('${c.id}','${ym}','${docId}')" title="Destaque"
+          style="background:none;border:none;cursor:pointer;font-size:1rem;opacity:${destaque?1:0.3};padding:0">⭐</button>
+      </div>
+      <div style="font-size:0.68rem;color:var(--gray);margin-bottom:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Competência: ${mesLabel}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
+        <div>
+          <div style="font-size:0.68rem;color:var(--gray);margin-bottom:0.2rem">Valor Meta</div>
+          <input type="number" value="${valorMeta}" placeholder="0"
+            style="width:100%;font-size:0.82rem;padding:0.25rem 0.4rem;border:1px solid #ddd;border-radius:6px;color:var(--navy);font-weight:600;box-sizing:border-box"
+            onclick="event.stopPropagation()" onfocus="event.stopPropagation()"
+            onblur="saveMetaValor('${c.id}','${ym}','${docId}','valor_meta',this.value,this)">
+        </div>
+        <div>
+          <div style="font-size:0.68rem;color:var(--gray);margin-bottom:0.2rem">Realizado</div>
+          <input type="number" value="${realizado}" placeholder="0"
+            style="width:100%;font-size:0.82rem;padding:0.25rem 0.4rem;border:1px solid #ddd;border-radius:6px;color:var(--navy);font-weight:600;box-sizing:border-box"
+            onclick="event.stopPropagation()" onfocus="event.stopPropagation()"
+            onblur="saveMetaValor('${c.id}','${ym}','${docId}','realizado',this.value,this)">
+        </div>
+      </div>
+      ${vmNum > 0 ? `
+      <div style="margin-bottom:0.4rem">
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.2rem">
+          <span style="font-size:0.7rem;color:var(--gray)">Realização</span>
+          <span style="font-size:0.78rem;font-weight:700;color:${pctColor}">${pctReal}%</span>
+        </div>
+        <div style="height:5px;border-radius:3px;background:#eee;overflow:hidden">
+          <div style="height:100%;width:${Math.min(100,pctReal)}%;background:${pctColor};border-radius:3px"></div>
+        </div>
+      </div>` : ''}
+      ${unidadesHtml}
+    </div>`;
   };
 
+  document.getElementById('metas-list').style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.75rem';
   let html = '';
-  clients.forEach(c => { html += clienteRow(c); });
+  clients.forEach(c => { html += clienteCard(c); });
   document.getElementById('metas-list').innerHTML = html;
 }
 
@@ -3324,6 +3375,29 @@ window.editNumUnidades = async function(clientId, el) {
   } else {
     await db.collection('clients').doc(clientId).update({ num_unidades: n });
     if (c) c.num_unidades = n;
+  }
+  await loadMetas();
+};
+
+window.saveMetaValor = async function(clientId, ym, docId, field, value, inputEl) {
+  const num = parseFloat(String(value).replace(',','.'));
+  const val = isNaN(num) ? 0 : num;
+  if (docId) {
+    await db.collection('metas_mensais').doc(docId).update({ [field]: val });
+  } else {
+    const ref = await db.collection('metas_mensais').add({ client_id: clientId, month: ym, [field]: val });
+    if (inputEl) inputEl.closest('[data-docid]') && (inputEl.closest('[data-docid]').dataset.docid = ref.id);
+  }
+  await loadMetas();
+};
+
+window.toggleMetaDestaque = async function(clientId, ym, docId) {
+  if (docId) {
+    const doc = await db.collection('metas_mensais').doc(docId).get();
+    const novoDestaque = !doc.data().destaque;
+    await db.collection('metas_mensais').doc(docId).update({ destaque: novoDestaque });
+  } else {
+    await db.collection('metas_mensais').add({ client_id: clientId, month: ym, destaque: true });
   }
   await loadMetas();
 };
@@ -5175,8 +5249,8 @@ let procProgressoCache = {};
 let asanaConfig = null;
 
 async function loadProcessos() {
-  // Mostra botões só para admin/gestor
-  const isAdmin = session && (session.role === 'admin' || session.role === 'gestor');
+  // Mostra botões para master, admin, gestor e Marília Falcioni
+  const isAdmin = session && (session.role === 'master' || session.role === 'admin' || session.role === 'gestor' || session.name === 'Marília Falcioni');
   const btnG = document.getElementById('btn-gerenciar-processos');
   const btnN = document.getElementById('btn-novo-processo');
   if (btnG) btnG.style.display = isAdmin ? '' : 'none';
