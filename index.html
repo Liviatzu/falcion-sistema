@@ -2250,16 +2250,22 @@ function renderClients(list) {
         <span style="font-size:0.82rem;font-weight:800;color:var(--navy);background:#f0f4f8;padding:0.15rem 0.45rem;border-radius:5px">${fmtHHMM(aExecutar)}</span>
       </div>
 
-      <!-- Hrs. programadas cronograma (tarefas) com sinalização vs a executar -->
+      <!-- Hrs. executadas (visitas lançadas no mês) -->
       <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.35rem">
-        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. programadas cronograma</span>
-        <span style="font-size:0.78rem;font-weight:700;color:${cronColor}">${fmtHHMM(cronHrs)}${cronSinal}</span>
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. executadas</span>
+        <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
       </div>
 
-      <!-- Hrs. executadas (visitas lançadas no mês) -->
+      <!-- Hrs. restantes = a executar − executadas -->
+      ${(()=>{const rest=aExecutar-usado;const neg=rest<0;const col=neg?'#E74C3C':rest===0?'#27AE60':'var(--navy)';const label=(neg?'-':'')+fmtHHMM(Math.abs(rest));return`<div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.35rem">
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. restantes</span>
+        <span style="font-size:0.82rem;font-weight:800;color:${col};background:${neg?'#FFF5F5':'#f0f4f8'};padding:0.15rem 0.45rem;border-radius:5px">${label}</span>
+      </div>`;})()}
+
+      <!-- Hrs. programadas cronograma (informativo) -->
       <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.5rem">
-        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. executadas (registros)</span>
-        <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. prog. cronograma</span>
+        <span style="font-size:0.78rem;font-weight:700;color:${cronColor}">${fmtHHMM(cronHrs)}${cronSinal}</span>
       </div>
 
       <!-- Rodapé -->
