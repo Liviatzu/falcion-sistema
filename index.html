@@ -512,12 +512,9 @@ tr:hover td{background:#F8FAFC}
       <div class="detail-tabs" id="detail-tabs-bar">
         <div class="detail-tab active" onclick="showTab('tasks-client')">Tarefas</div>
         <div class="detail-tab" onclick="showTab('visits')">Registro de Visitas</div>
-        <div class="detail-tab" onclick="showTab('notes')">Notas</div>
         <div class="detail-tab" onclick="showTab('contacts')">Contatos</div>
         <div class="detail-tab" onclick="showTab('ocorrencias')">Ocorrências</div>
         <div class="detail-tab" onclick="showTab('cronograma')">📅 Cronograma</div>
-        <div class="detail-tab" onclick="showTab('postagens')">📸 Postagens</div>
-        <div class="detail-tab" onclick="showTab('arquivos')">📎 Arquivos</div>
         <!-- abas customizadas injetadas aqui -->
         <div id="custom-tabs-btns"></div>
         <button id="btn-add-custom-tab" onclick="openAddTabModal()" style="display:none;background:none;border:1.5px dashed var(--gray);color:var(--gray);border-radius:8px;padding:0.3rem 0.7rem;font-size:0.78rem;cursor:pointer;white-space:nowrap;margin-left:0.3rem">＋ Aba</button>
@@ -1536,6 +1533,7 @@ let session = null;
 let allProfiles = [];
 let allClients = [];
 let clientMonthUsed = {};
+let clientCronHoras = {};
 let clientSepUsed = {};
 let clientSepInitial = {};
 let allTasks = [];
@@ -1660,7 +1658,7 @@ function showTab(name) {
   const tabEl = document.getElementById('tab-'+name);
   if (tabEl) tabEl.classList.add('active');
   // fixas
-  const fixedNames = ['tasks-client','visits','notes','contacts','ocorrencias','cronograma','postagens','arquivos'];
+  const fixedNames = ['tasks-client','visits','contacts','ocorrencias','cronograma'];
   const idx = fixedNames.indexOf(name);
   if (idx>=0) document.querySelectorAll('#detail-tabs-bar > .detail-tab')[idx].classList.add('active');
   // customizadas
@@ -1880,8 +1878,9 @@ function enterApp() {
   document.getElementById('app').classList.add('active');
   document.getElementById('sb-avatar').textContent = session.ini||session.name[0];
   document.getElementById('sb-name').textContent = session.name;
-  // Mostra menu Configurações apenas para master
-  document.getElementById('nav-config').style.display = (session.role==='master') ? 'flex' : 'none';
+  // Mostra menu Configurações para master e Marília Falcioni
+  const isGestor = session.role==='master' || session.name==='Marília Falcioni';
+  document.getElementById('nav-config').style.display = isGestor ? 'flex' : 'none';
   document.getElementById('btn-novo-comunicado').style.display = 'none';
   document.getElementById('btn-novo-comunicado2').style.display = (session.role==='master') ? 'inline-block' : 'none';
   loadComunicados(); // badge no sino
@@ -2150,12 +2149,24 @@ async function loadClients() {
     const tSnap = await db.collection('tasks').get();
     tSnap.docs.forEach(d=>{
       const t=d.data();
-      if (t.status==='done') return; // só conta pendente e em andamento
+      if (t.status==='done') return;
       if (!t.client_id || !t.tempo_previsto) return;
-      // conta só tarefas sem prazo ou com prazo no mês atual
       const taskYm = t.due ? t.due.substring(0,7) : null;
       if (taskYm && taskYm !== ym) return;
       clientTaskHours[t.client_id]=(clientTaskHours[t.client_id]||0)+parseHHMM(t.tempo_previsto);
+    });
+  } catch(e){}
+  // Carrega horas programadas no cronograma do mês atual por cliente
+  clientCronHoras = {};
+  try {
+    const cronDocs = await Promise.all(
+      allClients.map(c => db.collection('cronograma').doc(c.id+'_'+ym).get())
+    );
+    cronDocs.forEach((doc, i) => {
+      if (!doc.exists) return;
+      const rows = doc.data().rows || [];
+      const total = rows.reduce((sum, r) => sum + parseHHMM(r.obs||'0'), 0);
+      if (total > 0) clientCronHoras[allClients[i].id] = total;
     });
   } catch(e){}
   renderClients(allClients);
@@ -2188,6 +2199,7 @@ function renderClients(list) {
     const logoHtml = c.logo_data
       ? `<img src="${c.logo_data}" style="width:56px;height:56px;object-fit:contain;border-radius:8px">`
       : `<div style="width:56px;height:56px;border-radius:10px;background:${bg};display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:#fff">${ini}</div>`;
+    const cronHrs = clientCronHoras[c.id]||0;
     return `
     <div class="client-card-new" onclick="openClientDetail('${c.id}')">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0.7rem">
@@ -2198,29 +2210,24 @@ function renderClients(list) {
         <input type="file" id="logo-input-${c.id}" accept="image/*" style="display:none" onchange="uploadLogo('${c.id}',this)">
         <button style="background:transparent;border:none;color:#ccc;cursor:pointer;font-size:1rem;padding:0" onclick="event.stopPropagation();deleteClient('${c.id}','${c.name}')">🗑</button>
       </div>
-      <div style="font-weight:700;font-size:0.9rem;color:var(--navy);line-height:1.3;margin-bottom:0.8rem;cursor:pointer" onclick="openClientDetail('${c.id}')">${c.name}</div>
-      <div style="margin-bottom:0.6rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.2rem">
-          <span style="font-size:0.68rem;color:var(--gray);text-transform:uppercase;letter-spacing:0.4px">Saldo atual</span>
-          <span style="font-size:1.15rem;font-weight:700;color:${neg?'var(--danger)':'var(--navy)'}">${fmtHHMM(saldo)}</span>
-        </div>
-        <div style="height:5px;border-radius:3px;background:#eee;overflow:hidden">
-          <div style="height:100%;width:${Math.min(100,pct)}%;background:${barColor};border-radius:3px;transition:width 0.4s"></div>
-        </div>
-      </div>
-      <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.25rem">
-        <span style="font-size:0.7rem;color:var(--gray);flex:1">Iniciais</span>
-        <input type="text" value="${c.initial_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','initial_hours',this.value)" placeholder="0:00">
-      </div>
-      <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.25rem">
-        <span style="font-size:0.7rem;color:var(--gray);flex:1">Usado no mês</span>
-        <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
-      </div>
-      <div style="display:flex;gap:0.4rem;align-items:center">
-        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. Contratuais</span>
+      <div style="font-weight:700;font-size:0.9rem;color:var(--navy);line-height:1.3;margin-bottom:0.75rem;cursor:pointer" onclick="openClientDetail('${c.id}')">${c.name}</div>
+      <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem">
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. contratuais</span>
         <input type="text" value="${c.monthly_quota_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','monthly_quota_hours',this.value)" placeholder="0:00">
       </div>
-      <div style="margin-top:0.7rem;display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem">
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Resíduo mês anterior</span>
+        <input type="text" value="${c.initial_hours||'0:00'}" style="width:64px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600" onclick="event.stopPropagation()" onfocus="event.stopPropagation()" onblur="saveClientHours('${c.id}','initial_hours',this.value)" placeholder="0:00">
+      </div>
+      <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem">
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. execução mês</span>
+        <span style="font-size:0.78rem;font-weight:700;color:${usado>0?'#E67E22':'var(--gray)'}">${fmtHHMM(usado)}</span>
+      </div>
+      <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem">
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. prog. cronograma</span>
+        <span style="font-size:0.78rem;font-weight:700;color:${cronHrs>0?'#7C3AED':'var(--gray)'}">${fmtHHMM(cronHrs)}</span>
+      </div>
+      <div style="margin-top:0.5rem;display:flex;justify-content:space-between;align-items:center">
         ${c.drive_url ? `<a href="${c.drive_url}" target="_blank" onclick="event.stopPropagation()" style="font-size:0.75rem;color:#1A73E8;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:0.3rem">📁 Drive</a>` : `<span></span>`}
         <span onclick="event.stopPropagation();openClientDetail('${c.id}')" style="font-size:0.75rem;color:var(--gold);font-weight:600;cursor:pointer;letter-spacing:0.3px">Ver cliente →</span>
       </div>
@@ -3335,7 +3342,7 @@ async function loadMetasHistorico() {
   const cfgByMonth = {};
   snapCfg.docs.forEach(d => { cfgByMonth[d.id] = d.data(); });
 
-  const months = Object.keys(byMonth).sort().reverse().slice(0,6);
+  const months = Object.keys(byMonth).sort().reverse().slice(0,2);
   const clients = allClients;
 
   if (!months.length) {
