@@ -2221,7 +2221,7 @@ function renderClients(list) {
         </div>
         <input type="file" id="logo-input-${c.id}" accept="image/*" style="display:none" onchange="uploadLogo('${c.id}',this)">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:0.88rem;color:var(--navy);line-height:1.3;cursor:pointer;margin-bottom:0.25rem" onclick="openClientDetail('${c.id}')">${c.name}</div>
+          <div style="font-weight:700;font-size:0.88rem;color:var(--navy);line-height:1.3;cursor:pointer;margin-bottom:0.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="openClientDetail('${c.id}')">${c.name}</div>
           <div style="display:flex;align-items:center;gap:0.35rem">
             <span style="font-size:0.68rem;color:var(--gray)">Contratuais:</span>
             <input type="text" value="${c.monthly_quota_hours||'0:00'}"
