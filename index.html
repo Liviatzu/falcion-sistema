@@ -512,7 +512,6 @@ tr:hover td{background:#F8FAFC}
       <div class="detail-tabs" id="detail-tabs-bar">
         <div class="detail-tab active" onclick="showTab('tasks-client')">Tarefas</div>
         <div class="detail-tab" onclick="showTab('visits')">Registro de Visitas</div>
-        <div class="detail-tab" onclick="showTab('contacts')">Contatos</div>
         <div class="detail-tab" onclick="showTab('ocorrencias')">Ocorrências</div>
         <div class="detail-tab" onclick="showTab('cronograma')">📅 Cronograma</div>
         <!-- abas customizadas injetadas aqui -->
@@ -1657,7 +1656,7 @@ function showTab(name) {
   const tabEl = document.getElementById('tab-'+name);
   if (tabEl) tabEl.classList.add('active');
   // fixas
-  const fixedNames = ['tasks-client','visits','contacts','ocorrencias','cronograma'];
+  const fixedNames = ['tasks-client','visits','ocorrencias','cronograma'];
   const idx = fixedNames.indexOf(name);
   if (idx>=0) document.querySelectorAll('#detail-tabs-bar > .detail-tab')[idx].classList.add('active');
   // customizadas
