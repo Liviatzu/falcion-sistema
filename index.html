@@ -829,8 +829,7 @@ tr:hover td{background:#F8FAFC}
       <div class="section-header">
         <div class="section-title">🔄 Processos de Implantação da Consultoria</div>
         <div style="display:flex;gap:0.5rem">
-          <button class="btn btn-ghost btn-sm" id="btn-gerenciar-processos" onclick="openGerenciarProcessos()" style="display:none">⚙️ Gerenciar</button>
-          <button class="btn btn-primary btn-sm" id="btn-novo-processo" onclick="openModalNovoProcesso()" style="display:none">+ Novo Processo</button>
+          <button class="btn btn-primary btn-sm" id="btn-novo-processo" onclick="openModalNovoProcesso()">+ Novo Processo</button>
         </div>
       </div>
       <div id="processos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.2rem"></div>
@@ -5261,12 +5260,6 @@ let procProgressoCache = {};
 let asanaConfig = null;
 
 async function loadProcessos() {
-  // Mostra botões para master, admin, gestor e Marília Falcioni
-  const isAdmin = session && (session.role === 'master' || session.role === 'admin' || session.role === 'gestor' || session.name === 'Marília Falcioni');
-  const btnG = document.getElementById('btn-gerenciar-processos');
-  const btnN = document.getElementById('btn-novo-processo');
-  if (btnG) btnG.style.display = isAdmin ? '' : 'none';
-  if (btnN) btnN.style.display = isAdmin ? '' : 'none';
 
   const pSnap = await db.collection('processos').get();
   processosCache = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -5303,24 +5296,99 @@ function renderProcessosGrid() {
   }
   grid.innerHTML = processosCache.map(p => {
     const etapas = p.etapas || [];
-    return `<div class="card" style="border-top:4px solid var(--gold)">
-      <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.9rem">
-        <span style="font-size:1.6rem">${p.icone||'🔄'}</span>
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:1rem;color:var(--navy)">${p.nome}</div>
-          <div style="font-size:0.73rem;color:var(--gray)">${etapas.length} etapa${etapas.length!==1?'s':''}</div>
-        </div>
-        ${session && (session.role==='master'||session.name==='Marília Falcioni') ? `<button onclick="window.openModalEditarProcesso('${p.id}')" style="background:none;border:none;color:var(--gray);cursor:pointer;font-size:0.85rem" title="Editar">✏️</button>` : ''}
+    const etapasHtml = etapas.map((e, i) => `
+      <div id="etapa-row-${p.id}-${i}" style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem">
+        <span style="color:var(--gold);font-size:0.8rem;flex-shrink:0">${i+1}.</span>
+        <input type="text" value="${(e.label||e).replace(/"/g,'&quot;')}"
+          oninput="window.updateEtapaInline('${p.id}',${i},this.value)"
+          onblur="window.saveProcessoInline('${p.id}')"
+          style="flex:1;padding:0.28rem 0.5rem;border:1.5px solid var(--gray-light);border-radius:6px;font-size:0.82rem;background:var(--bg);color:var(--navy)">
+        <button onclick="window.removeEtapaInline('${p.id}',${i})" title="Remover etapa"
+          style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:0.9rem;padding:0 0.1rem;flex-shrink:0">✕</button>
+      </div>`).join('');
+
+    return `<div class="card" style="border-top:4px solid var(--gold)" id="proc-card-${p.id}">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">
+        <input type="text" value="${(p.icone||'🔄').replace(/"/g,'&quot;')}"
+          oninput="window.updateProcessoField('${p.id}','icone',this.value)"
+          onblur="window.saveProcessoInline('${p.id}')"
+          style="width:2.4rem;text-align:center;padding:0.2rem;border:1.5px solid var(--gray-light);border-radius:6px;font-size:1.3rem;background:var(--bg)">
+        <input type="text" value="${(p.nome||'').replace(/"/g,'&quot;')}"
+          oninput="window.updateProcessoField('${p.id}','nome',this.value)"
+          onblur="window.saveProcessoInline('${p.id}')"
+          placeholder="Nome do processo"
+          style="flex:1;padding:0.3rem 0.5rem;border:1.5px solid var(--gray-light);border-radius:6px;font-size:0.95rem;font-weight:700;color:var(--navy);background:var(--bg)">
+        <button onclick="window.deleteProcessoInline('${p.id}')" title="Excluir processo"
+          style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:0.85rem;opacity:0.6;flex-shrink:0" title="Excluir">🗑️</button>
       </div>
-      ${etapas.length ? `<div style="display:flex;flex-direction:column;gap:0.4rem">
-        ${etapas.map(e => `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.83rem;color:var(--navy);padding:0.3rem 0.5rem;border-radius:6px;background:#f9f9fb">
-          <span style="color:var(--gold);flex-shrink:0">→</span>
-          <span>${e.label||e}</span>
-        </div>`).join('')}
-      </div>` : '<p style="color:var(--gray);font-size:0.82rem;margin:0">Nenhuma etapa cadastrada.</p>'}
+      <div id="etapas-list-${p.id}" style="display:flex;flex-direction:column;gap:0">
+        ${etapasHtml || '<p style="color:var(--gray);font-size:0.8rem;margin:0 0 0.4rem">Nenhuma etapa ainda.</p>'}
+      </div>
+      <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
+        <input type="text" id="nova-etapa-${p.id}" placeholder="Nova etapa..." onkeydown="if(event.key==='Enter')window.addEtapaInline('${p.id}')"
+          style="flex:1;padding:0.28rem 0.5rem;border:1.5px dashed var(--gray-light);border-radius:6px;font-size:0.82rem;background:var(--bg);color:var(--navy)">
+        <button onclick="window.addEtapaInline('${p.id}')"
+          style="padding:0.28rem 0.7rem;background:var(--gold);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">+ Etapa</button>
+      </div>
     </div>`;
   }).join('');
 }
+
+window.updateProcessoField = function(pid, field, val) {
+  const p = processosCache.find(x => x.id === pid);
+  if (p) p[field] = val;
+};
+
+window.updateEtapaInline = function(pid, idx, val) {
+  const p = processosCache.find(x => x.id === pid);
+  if (!p || !p.etapas) return;
+  if (typeof p.etapas[idx] === 'string') p.etapas[idx] = { id: Date.now().toString(), label: val };
+  else p.etapas[idx].label = val;
+};
+
+window.addEtapaInline = async function(pid) {
+  const inp = document.getElementById('nova-etapa-' + pid);
+  if (!inp) return;
+  const val = (inp.value || '').trim();
+  if (!val) return;
+  const p = processosCache.find(x => x.id === pid);
+  if (!p) return;
+  if (!p.etapas) p.etapas = [];
+  p.etapas.push({ id: Date.now().toString(), label: val });
+  inp.value = '';
+  await window.saveProcessoInline(pid);
+};
+
+window.removeEtapaInline = async function(pid, idx) {
+  const p = processosCache.find(x => x.id === pid);
+  if (!p || !p.etapas) return;
+  p.etapas.splice(idx, 1);
+  await window.saveProcessoInline(pid);
+};
+
+window.saveProcessoInline = async function(pid) {
+  const p = processosCache.find(x => x.id === pid);
+  if (!p) return;
+  try {
+    const etapas = (p.etapas || []).map(e => typeof e === 'string' ? { id: Date.now().toString(), label: e } : e).filter(e => (e.label||'').trim());
+    await db.collection('processos').doc(pid).update({
+      nome: p.nome || '',
+      icone: p.icone || '🔄',
+      etapas,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    p.etapas = etapas;
+    renderProcessosGrid();
+  } catch(e) { toast('Erro ao salvar processo.', 'error'); }
+};
+
+window.deleteProcessoInline = async function(pid) {
+  if (!confirm('Excluir este processo?')) return;
+  await db.collection('processos').doc(pid).delete();
+  processosCache = processosCache.filter(x => x.id !== pid);
+  renderProcessosGrid();
+  toast('Processo excluído.');
+};
 
 window.openModalNovoProcesso = function() {
   procEtapasEdit = [];
@@ -5386,8 +5454,6 @@ window.saveProcesso = async function() {
   closeModal('modal-processo');
   toast('Processo salvo!');
   await loadProcessos();
-  // Se veio de Gerenciar, reabre a listagem
-  window.openGerenciarProcessos();
 };
 
 window.openClienteProcessos = function(clientId, clientName) {
