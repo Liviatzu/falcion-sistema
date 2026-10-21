@@ -827,7 +827,7 @@ tr:hover td{background:#F8FAFC}
     <!-- PROCESSOS -->
     <div class="section" id="sec-processos">
       <div class="section-header">
-        <div class="section-title">🔄 Processos</div>
+        <div class="section-title">🔄 Processos de Implantação da Consultoria</div>
         <div style="display:flex;gap:0.5rem">
           <button class="btn btn-ghost btn-sm" id="btn-gerenciar-processos" onclick="openGerenciarProcessos()" style="display:none">⚙️ Gerenciar</button>
           <button class="btn btn-primary btn-sm" id="btn-novo-processo" onclick="openModalNovoProcesso()" style="display:none">+ Novo Processo</button>
@@ -5268,16 +5268,8 @@ async function loadProcessos() {
   if (btnG) btnG.style.display = isAdmin ? '' : 'none';
   if (btnN) btnN.style.display = isAdmin ? '' : 'none';
 
-  // Carrega processos e clientes em paralelo
-  const [pSnap, cSnap, progSnap] = await Promise.all([
-    db.collection('processos').get(),
-    db.collection('clients').where('status','==','active').get(),
-    db.collection('processo_progresso').get()
-  ]);
+  const pSnap = await db.collection('processos').get();
   processosCache = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  procClientesCache = cSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  procProgressoCache = {};
-  progSnap.docs.forEach(d => { procProgressoCache[d.id] = d.data(); });
   renderProcessosGrid();
 }
 
@@ -5305,46 +5297,27 @@ window.openGerenciarProcessos = function() {
 function renderProcessosGrid() {
   const grid = document.getElementById('processos-grid');
   if (!grid) return;
-  if (!procClientesCache.length) {
-    grid.innerHTML = '<p style="color:var(--gray);font-size:0.9rem;grid-column:1/-1">Nenhum cliente ativo encontrado.</p>';
+  if (!processosCache.length) {
+    grid.innerHTML = '<p style="color:var(--gray);font-size:0.9rem;grid-column:1/-1">Nenhum processo cadastrado ainda. Clique em "+ Novo Processo" para adicionar.</p>';
     return;
   }
-  grid.innerHTML = procClientesCache.map(c => {
-    // Calcula progresso geral do cliente (média de todos os processos)
-    const total = processosCache.length;
-    const concluidos = processosCache.filter(p => {
-      const key = p.id + '_' + c.id;
-      const prog = procProgressoCache[key];
-      if (!prog) return false;
-      return (prog.steps_done||[]).length === (p.etapas||[]).length && (p.etapas||[]).length > 0;
-    }).length;
-    const iniciados = processosCache.filter(p => {
-      const key = p.id + '_' + c.id;
-      const prog = procProgressoCache[key];
-      return prog && (prog.steps_done||[]).length > 0;
-    }).length;
-    return `<div class="card" style="cursor:pointer;border-top:4px solid var(--gold);transition:box-shadow 0.15s" onclick="window.openClienteProcessos('${c.id}','${(c.name||'').replace(/'/g,"\\'")}') " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.14)'" onmouseout="this.style.boxShadow=''">
-      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.8rem">
-        ${c.logo_data
-          ? `<img src="${c.logo_data}" style="width:42px;height:42px;object-fit:contain;border-radius:8px;flex-shrink:0">`
-          : `<div style="width:42px;height:42px;border-radius:50%;background:${clientColor(c.name)};color:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;flex-shrink:0">${clientInitials(c.name)}</div>`
-        }
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:0.95rem;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
-          <div style="font-size:0.73rem;color:var(--gray);margin-top:0.1rem">${iniciados} de ${total} processo${total!==1?'s':''} iniciado${iniciados!==1?'s':''}</div>
+  grid.innerHTML = processosCache.map(p => {
+    const etapas = p.etapas || [];
+    return `<div class="card" style="border-top:4px solid var(--gold)">
+      <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.9rem">
+        <span style="font-size:1.6rem">${p.icone||'🔄'}</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:1rem;color:var(--navy)">${p.nome}</div>
+          <div style="font-size:0.73rem;color:var(--gray)">${etapas.length} etapa${etapas.length!==1?'s':''}</div>
         </div>
+        ${session && (session.role==='master'||session.name==='Marília Falcioni') ? `<button onclick="window.openModalEditarProcesso('${p.id}')" style="background:none;border:none;color:var(--gray);cursor:pointer;font-size:0.85rem" title="Editar">✏️</button>` : ''}
       </div>
-      <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-        ${processosCache.map(p => {
-          const key = p.id + '_' + c.id;
-          const prog = procProgressoCache[key];
-          const done = prog ? (prog.steps_done||[]).length : 0;
-          const total2 = (p.etapas||[]).length;
-          const pct = total2 > 0 ? Math.round(done/total2*100) : 0;
-          const color = pct===100 ? '#27AE60' : pct>0 ? '#F39C12' : '#ccc';
-          return `<span title="${p.nome}: ${pct}%" style="background:${color};color:#fff;border-radius:5px;padding:0.15rem 0.45rem;font-size:0.68rem;font-weight:600">${p.icone||'🔄'} ${pct}%</span>`;
-        }).join('')}
-      </div>
+      ${etapas.length ? `<div style="display:flex;flex-direction:column;gap:0.4rem">
+        ${etapas.map(e => `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.83rem;color:var(--navy);padding:0.3rem 0.5rem;border-radius:6px;background:#f9f9fb">
+          <span style="color:var(--gold);flex-shrink:0">→</span>
+          <span>${e.label||e}</span>
+        </div>`).join('')}
+      </div>` : '<p style="color:var(--gray);font-size:0.82rem;margin:0">Nenhuma etapa cadastrada.</p>'}
     </div>`;
   }).join('');
 }
