@@ -2241,7 +2241,7 @@ function renderClients(list) {
       <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.35rem">
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Resíduo mês anterior</span>
         <input type="text" value="${c.initial_hours||'0:00'}"
-          style="width:60px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;color:var(--navy);font-weight:600;background:var(--bg)"
+          style="width:60px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;font-weight:600;background:var(--bg);color:${residuo<0?'#E74C3C':'var(--navy)'}"
           onclick="event.stopPropagation()" onfocus="event.stopPropagation()"
           onblur="saveClientHours('${c.id}','initial_hours',this.value)" placeholder="0:00">
       </div>
@@ -4416,7 +4416,7 @@ async function virarMes() {
   const saldo = initial - used;
   // Novo inicial = horas contratuais + saldo (positivo soma, negativo debita)
   const novoInicialDecimal = quota + saldo;
-  const novoInicial = fmtHHMM(Math.max(0, novoInicialDecimal));
+  const novoInicial = (novoInicialDecimal < 0 ? '-' : '') + fmtHHMM(Math.abs(novoInicialDecimal));
 
   const saldoLabel = saldo >= 0 ? `+${fmtHHMM(saldo)}` : `-${fmtHHMM(Math.abs(saldo))}`;
   const msg = `Virar mês?\n\nMês sendo fechado: ${monthLabel}\nHoras iniciais: ${fmtHHMM(initial)}\nUsado no mês: ${fmtHHMM(used)}\nSaldo: ${saldoLabel}\n\nHoras contratuais: ${fmtHHMM(quota)}\nNovo inicial (próximo mês): ${novoInicial}`;
