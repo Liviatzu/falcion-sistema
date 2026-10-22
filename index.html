@@ -3118,10 +3118,10 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   }
   hoursEl.innerHTML = hoursPanel;
 
-  // Montar lista a exibir
-  const displayList = showDone ? [...activeList, ...doneList] : activeList;
+  // No Kanban, concluídas sempre aparecem na coluna própria
+  const displayList = [...activeList, ...doneList];
 
-  // Botão "Ver concluídas"
+  // Botão "Ver todas as pendentes de outros meses"
   let doneToggleEl = document.getElementById('client-tasks-done-toggle');
   if (!doneToggleEl) {
     doneToggleEl = document.createElement('div');
@@ -3132,13 +3132,8 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   const allPendingCount = allList.filter(t=>(t.status||'pending')!=='done' && t.due && !t.due.startsWith(curYM)).length;
   let toggleHtml = '';
   if (allPendingCount > 0 || showAllMonths) {
-    toggleHtml += `<button onclick="loadClientTasks('${clientId}',${showDone},${!showAllMonths})" style="background:none;border:none;color:#7C3AED;font-size:0.8rem;font-weight:600;cursor:pointer;padding:0;margin-right:1rem">
+    toggleHtml += `<button onclick="loadClientTasks('${clientId}',true,${!showAllMonths})" style="background:none;border:none;color:#7C3AED;font-size:0.8rem;font-weight:600;cursor:pointer;padding:0;margin-right:1rem">
       ${showAllMonths ? '📅 Só mês atual' : `📋 Ver todas as pendentes (${allPendingCount} de outros meses)`}
-    </button>`;
-  }
-  if (doneList.length) {
-    toggleHtml += `<button onclick="loadClientTasks('${clientId}',${!showDone},${showAllMonths})" style="background:none;border:none;color:var(--gold);font-size:0.8rem;font-weight:600;cursor:pointer;padding:0">
-      ${showDone ? '🙈 Ocultar concluídas' : `👁 Ver ${doneList.length} concluída(s)`}
     </button>`;
   }
   doneToggleEl.innerHTML = toggleHtml;
