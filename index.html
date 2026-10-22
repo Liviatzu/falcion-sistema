@@ -1484,6 +1484,17 @@ tr:hover td{background:#F8FAFC}
   </div>
 </div>
 
+<!-- TASK DETAIL MODAL -->
+<div class="modal-overlay" id="modal-task-detail">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-header">
+      <div class="modal-title">📋 Detalhe da Tarefa</div>
+      <button class="modal-close" onclick="closeModal('modal-task-detail')">✕</button>
+    </div>
+    <div id="task-detail-body" style="padding:0.5rem 0"></div>
+  </div>
+</div>
+
 <!-- FIREBASE + FULLCALENDAR + APP -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -2481,23 +2492,37 @@ function renderVisitList(list) {
   document.getElementById('visits-total').textContent = fmtHHMM(total)+'h';
   if (!list.length) {
     container.innerHTML = '<div class="empty-state"><div class="icon">🗓</div><p>Nenhuma visita registrada</p></div>';
+    container.style.display = 'block';
     return;
   }
-  container.innerHTML = list.map(v=>`
-    <div class="visit-item">
-      <div class="visit-dot"></div>
-      <div class="visit-body">
-        <div class="visit-date">${fmtDateStr(v.date)}</div>
-        <div class="visit-consultant">${v.created_by||'—'}</div>
-        ${v.task_title?`<div class="visit-task-tag">📌 ${v.task_title}</div>`:''}
-        <div class="visit-desc">${v.description||''}</div>
+  container.style.display = 'grid';
+  container.style.gridTemplateColumns = 'repeat(auto-fill,minmax(280px,1fr))';
+  container.style.gap = '0.7rem';
+  container.style.alignItems = 'start';
+  container.innerHTML = list.map(v => {
+    const desc = (v.description||'').trim();
+    const descId = 'vdesc-'+v.id;
+    return `
+    <div style="background:var(--white);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
+      <div style="height:3px;background:#2980B9"></div>
+      <div style="padding:0.6rem 0.75rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem">
+          <span style="font-weight:700;font-size:0.82rem;color:var(--navy)">${fmtDateStr(v.date)}</span>
+          <span style="font-size:0.85rem;font-weight:700;color:#2980B9;white-space:nowrap">${fmtHHMM(parseHHMM(v.hours))}</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--gray);margin-bottom:0.3rem">👤 ${v.created_by||'—'}</div>
+        ${v.task_title?`<div style="font-size:0.72rem;background:#f0f4ff;color:var(--navy);border-radius:5px;padding:0.1rem 0.4rem;display:inline-block;margin-bottom:0.3rem">📌 ${v.task_title}</div>`:''}
+        ${desc?`<div>
+          <div id="${descId}" style="display:none;font-size:0.78rem;color:#555;line-height:1.45;margin-bottom:0.3rem;white-space:pre-wrap">${desc}</div>
+          <button onclick="(function(el,btn){el.style.display=el.style.display==='none'?'block':'none';btn.textContent=el.style.display==='block'?'▲ Ocultar':'📝 Ver descrição'})(document.getElementById('${descId}'),this)" style="background:none;border:none;color:#2980B9;font-size:0.72rem;cursor:pointer;padding:0;font-weight:600">📝 Ver descrição</button>
+        </div>`:''}
+        <div style="display:flex;gap:0.4rem;margin-top:0.4rem;justify-content:flex-end">
+          <button style="background:#f0f4ff;border:1px solid var(--navy);color:var(--navy);border-radius:6px;padding:0.1rem 0.45rem;font-size:0.7rem;cursor:pointer" onclick="openEditVisit('${v.id}')">✏️ Editar</button>
+          <button style="background:#fff0f0;border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:0.1rem 0.45rem;font-size:0.7rem;cursor:pointer" onclick="deleteVisit('${v.id}')">🗑</button>
+        </div>
       </div>
-      <div class="visit-right">
-        <span class="visit-hours">${fmtHHMM(parseHHMM(v.hours))}</span>
-        <button style="background:none;border:none;color:#1565C0;cursor:pointer;font-size:0.82rem;font-weight:600" onclick="openEditVisit('${v.id}')">✏️</button>
-        <button style="background:none;border:none;color:#ccc;cursor:pointer;font-size:0.9rem" onclick="deleteVisit('${v.id}')">🗑</button>
-      </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function loadVisits(clientId) {
@@ -3650,9 +3675,29 @@ function renderTaskList(list, containerId) {
   const container = document.getElementById(containerId);
   if (!list.length) {
     container.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>Nenhuma tarefa encontrada</p></div>';
+    container.style.display = 'block';
     return;
   }
-  container.innerHTML = list.map(t=>{
+
+  // Kanban: 3 colunas
+  const cols = { pending: [], in_progress: [], done: [], suspended: [] };
+  list.forEach(t => cols[t.status||'pending'].push(t));
+
+  const colDefs = [
+    { key:'pending',     label:'🔴 Pendente',     color:'#E74C3C' },
+    { key:'in_progress', label:'🟡 Em Andamento',  color:'#E67E22' },
+    { key:'done',        label:'✅ Concluída',      color:'#27AE60' },
+  ];
+  if (cols.suspended.length) colDefs.push({ key:'suspended', label:'⏸️ Suspensa', color:'#95A5A6' });
+
+  container.style.display = 'grid';
+  container.style.gridTemplateColumns = `repeat(${colDefs.length}, 1fr)`;
+  container.style.gap = '0.8rem';
+  container.style.alignItems = 'start';
+
+  container.innerHTML = colDefs.map(col => {
+    const tasks = cols[col.key];
+    const cardsHtml = tasks.map(t => {
     const assignedArr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
     const assignedHtml = assignedArr.length ? assignedArr.map(a=>`<span style="background:#e8f0fe;color:var(--navy);border-radius:12px;padding:0.1rem 0.5rem;font-size:0.75rem;font-weight:600">👤 ${a}</span>`).join(' ') : '';
     const st = t.status||'pending';
@@ -3672,56 +3717,89 @@ function renderTaskList(list, containerId) {
     const subsPct = subs.length ? Math.round(subsDone/subs.length*100) : 0;
     const subsBarColor = subsPct===100?'#27AE60':subsPct>=50?'#F39C12':'#2980B9';
     const subsHrsTotal = subs.reduce((acc,s)=>acc+parseHHMM(s.hours||'0'),0);
-    const subsHrsDone  = subs.filter(s=>s.done).reduce((acc,s)=>acc+parseHHMM(s.hours||'0'),0);
-    const subsHrsHtml  = subsHrsTotal>0 ? `<span style="font-size:0.7rem;color:#E65100;font-weight:600;white-space:nowrap">⏱ ${fmtHHMM(subsHrsDone)}/${fmtHHMM(subsHrsTotal)}</span>` : '';
-    const progressHtml = subs.length ? `
-      <div class="subtask-progress">
-        <span style="font-size:0.7rem;color:var(--gray);white-space:nowrap">${subsDone}/${subs.length} subtarefas</span>
-        <div class="subtask-progress-bar"><div class="subtask-progress-fill" style="width:${subsPct}%;background:${subsBarColor}"></div></div>
-        <span style="font-size:0.7rem;font-weight:700;color:${subsBarColor}">${subsPct}%</span>
-        ${subsHrsHtml}
-      </div>` : '';
-    const subsHtml = subs.length ? `
-      <div class="subtask-list">
-        ${subs.map(s=>`
-        <div class="subtask-item">
-          <input type="checkbox" class="subtask-check" ${s.done?'checked':''} onchange="toggleSubtask('${t.id}','${s.id}')">
-          <span style="flex:1;font-size:0.82rem${s.done?';text-decoration:line-through;color:var(--gray)':''}">${s.title}</span>
-          ${s.hours?`<span style="font-size:0.72rem;background:#fff3e0;color:#E65100;border-radius:10px;padding:0.1rem 0.4rem;font-weight:600">⏱ ${s.hours}</span>`:''}
-          ${s.due?`<span style="font-size:0.72rem;color:var(--gray)">📅 ${fmtDateStr(s.due)}</span>`:''}
-          ${s.assigned_to?`<span style="font-size:0.72rem;background:#e8f0fe;color:var(--navy);border-radius:10px;padding:0.1rem 0.4rem">👤 ${s.assigned_to}</span>`:''}
-          <button onclick="editSubtask('${t.id}','${s.id}')" style="background:none;border:none;color:#7C3AED;cursor:pointer;font-size:0.75rem;padding:0 0.2rem" title="Editar">✏️</button>
-          <button onclick="deleteSubtask('${t.id}','${s.id}')" style="background:none;border:none;color:#bbb;cursor:pointer;font-size:0.75rem;padding:0 0.2rem" title="Remover">✕</button>
-        </div>`).join('')}
-      </div>` : '';
+    // Card compacto — subtarefas só no modal ao clicar
+    const subsBadge = subs.length ? `<span style="font-size:0.67rem;background:${subsBarColor}22;color:${subsBarColor};border-radius:10px;padding:0.1rem 0.45rem;font-weight:700;cursor:pointer" onclick="event.stopPropagation();openTaskDetail('${t.id}')">📋 ${subsDone}/${subs.length} ${subsPct}%</span>` : '';
 
-    const stripeColor = st==='done'?'#27AE60':st==='in_progress'?'#E67E22':st==='suspended'?'#95A5A6':'#E74C3C';
     return `
-    <div class="task-item" style="padding:0;overflow:hidden;border-radius:10px">
-      <div style="height:3px;background:${stripeColor}"></div>
+    <div class="task-item" style="padding:0;overflow:hidden;border-radius:10px;cursor:pointer" onclick="openTaskDetail('${t.id}')">
       <div style="padding:0.55rem 0.75rem 0.5rem">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;margin-bottom:0.3rem">
           ${statusSel}
           <div style="display:flex;gap:0.25rem;flex-shrink:0">
-            <button class="btn btn-sm" style="background:#eaf4ff;color:#1A6FA8;border:1px solid #1A6FA8;padding:0.1rem 0.4rem;font-size:0.75rem;font-weight:700" onclick="openSubtaskModal('${t.id}')" title="Subtarefa">＋</button>
-            <button class="btn btn-sm" style="background:#f0f4ff;color:var(--navy);border:1px solid var(--navy);padding:0.1rem 0.35rem;font-size:0.7rem" onclick="editTask('${t.id}')">✏️</button>
-            <button class="btn btn-sm" style="background:#fff0f0;color:var(--danger);border:1px solid var(--danger);padding:0.1rem 0.35rem;font-size:0.7rem" onclick="deleteTask('${t.id}')">🗑</button>
+            <button class="btn btn-sm" style="background:#eaf4ff;color:#1A6FA8;border:1px solid #1A6FA8;padding:0.1rem 0.4rem;font-size:0.75rem;font-weight:700" onclick="event.stopPropagation();openSubtaskModal('${t.id}')" title="Subtarefa">＋</button>
+            <button class="btn btn-sm" style="background:#f0f4ff;color:var(--navy);border:1px solid var(--navy);padding:0.1rem 0.35rem;font-size:0.7rem" onclick="event.stopPropagation();editTask('${t.id}')">✏️</button>
+            <button class="btn btn-sm" style="background:#fff0f0;color:var(--danger);border:1px solid var(--danger);padding:0.1rem 0.35rem;font-size:0.7rem" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑</button>
           </div>
         </div>
         <div style="font-weight:700;font-size:0.85rem;color:var(--navy);margin-bottom:0.3rem;line-height:1.3;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:0.25rem;align-items:center${t.demanda||progressHtml?';margin-bottom:0.3rem':''}">
-          ${t.client_name?`<span style="font-size:0.68rem;background:#f0f4ff;color:var(--navy);border-radius:5px;padding:0.12rem 0.4rem;font-weight:600">🏢 ${t.client_name}</span>`:''}
-          ${assignedArr.map(a=>`<span style="font-size:0.68rem;background:#e8f0fe;color:#1A4FA8;border-radius:5px;padding:0.12rem 0.4rem;font-weight:600">👤 ${a}</span>`).join('')}
-          ${t.due?`<span style="font-size:0.68rem;color:var(--gray);border-radius:5px;padding:0.12rem 0.4rem">📅 ${fmtDateStr(t.due)}</span>`:''}
-          ${t.tempo_previsto?`<span style="font-size:0.68rem;color:#E65100;background:#fff3e0;border-radius:5px;padding:0.12rem 0.4rem;font-weight:600">⏱ ${t.tempo_previsto}</span>`:''}
-          ${t.frequencia?`<span style="font-size:0.68rem;color:var(--gray);border-radius:5px;padding:0.12rem 0.4rem">🔁 ${t.frequencia.charAt(0).toUpperCase()+t.frequencia.slice(1)}</span>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:0.25rem;align-items:center">
+          ${t.client_name?`<span style="font-size:0.67rem;background:#f0f4ff;color:var(--navy);border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">🏢 ${t.client_name}</span>`:''}
+          ${assignedArr.map(a=>`<span style="font-size:0.67rem;background:#e8f0fe;color:#1A4FA8;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">👤 ${a}</span>`).join('')}
+          ${t.due?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">📅 ${fmtDateStr(t.due)}</span>`:''}
+          ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100;background:#fff3e0;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">⏱ ${t.tempo_previsto}</span>`:''}
+          ${t.frequencia?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">🔁 ${t.frequencia.charAt(0).toUpperCase()+t.frequencia.slice(1)}</span>`:''}
+          ${subsBadge}
         </div>
-        ${t.demanda?`<div style="color:#666;font-size:0.78rem;margin-bottom:0.3rem;line-height:1.35">${t.demanda}</div>`:''}
-        ${progressHtml}
       </div>
-      ${subsHtml}
+    </div>`;
+    }).join('');
+
+    return `<div style="background:var(--white);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <div style="padding:0.6rem 0.9rem;background:${col.color}18;border-bottom:3px solid ${col.color};display:flex;align-items:center;justify-content:space-between">
+        <span style="font-weight:700;font-size:0.85rem;color:var(--navy)">${col.label}</span>
+        <span style="font-size:0.72rem;color:var(--gray);background:var(--bg);border-radius:10px;padding:0.1rem 0.5rem">${tasks.length}</span>
+      </div>
+      <div style="padding:0.6rem;display:flex;flex-direction:column;gap:0.5rem;min-height:60px">
+        ${cardsHtml || '<p style="color:var(--gray);font-size:0.8rem;text-align:center;padding:0.5rem">Nenhuma</p>'}
+      </div>
     </div>`;
   }).join('');
+}
+
+window.openTaskDetail = function(id) {
+  let t = allTasks.find(x=>x.id===id);
+  if (!t) { db.collection('tasks').doc(id).get().then(d=>{ if(d.exists){ t={id:d.id,...d.data()}; _showTaskDetail(t); } }); return; }
+  _showTaskDetail(t);
+};
+
+function _showTaskDetail(t) {
+  const subs = Array.isArray(t.subtasks) ? [...t.subtasks].sort((a,b)=>(a.due||'').localeCompare(b.due||'')) : [];
+  const subsDone = subs.filter(s=>s.done).length;
+  const subsPct = subs.length ? Math.round(subsDone/subs.length*100) : 0;
+  const subsBarColor = subsPct===100?'#27AE60':subsPct>=50?'#F39C12':'#2980B9';
+  const assignedArr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+  const stLabel = {pending:'🔴 Pendente',in_progress:'🟡 Em Andamento',done:'✅ Concluída',suspended:'⏸️ Suspensa'}[t.status||'pending'];
+
+  const subsHtml = subs.length ? `
+    <div style="margin-top:0.8rem">
+      <div style="font-size:0.75rem;font-weight:700;color:var(--gray);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:.5px">Subtarefas — ${subsDone}/${subs.length} (${subsPct}%)</div>
+      <div style="background:#e8edf2;border-radius:6px;height:5px;margin-bottom:0.6rem;overflow:hidden"><div style="width:${subsPct}%;background:${subsBarColor};height:100%;border-radius:6px"></div></div>
+      ${subs.map(s=>`<div style="display:flex;align-items:center;gap:0.4rem;padding:0.35rem 0.4rem;border-radius:6px;margin-bottom:0.25rem;background:#f9f9fb">
+        <input type="checkbox" ${s.done?'checked':''} onchange="toggleSubtask('${t.id}','${s.id}')" style="accent-color:var(--gold)">
+        <span style="flex:1;font-size:0.8rem${s.done?';text-decoration:line-through;color:var(--gray)':''}">${s.title}</span>
+        ${s.due?`<span style="font-size:0.7rem;color:var(--gray)">📅 ${fmtDateStr(s.due)}</span>`:''}
+        ${s.assigned_to?`<span style="font-size:0.7rem;color:#1A4FA8">👤 ${s.assigned_to}</span>`:''}
+        <button onclick="editSubtask('${t.id}','${s.id}')" style="background:none;border:none;color:#7C3AED;cursor:pointer;font-size:0.7rem">✏️</button>
+      </div>`).join('')}
+    </div>` : '';
+
+  document.getElementById('task-detail-body').innerHTML = `
+    <div style="margin-bottom:0.5rem">${stLabel} &nbsp; ${t.frequencia?`<span style="font-size:0.75rem;color:var(--gray)">🔁 ${t.frequencia}</span>`:''}</div>
+    <div style="font-weight:700;font-size:1rem;color:var(--navy);margin-bottom:0.6rem">${t.personal?'🔒 ':''}${t.title}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.6rem">
+      ${t.client_name?`<span style="font-size:0.75rem;background:#f0f4ff;color:var(--navy);border-radius:5px;padding:0.15rem 0.5rem;font-weight:600">🏢 ${t.client_name}</span>`:''}
+      ${assignedArr.map(a=>`<span style="font-size:0.75rem;background:#e8f0fe;color:#1A4FA8;border-radius:5px;padding:0.15rem 0.5rem;font-weight:600">👤 ${a}</span>`).join('')}
+      ${t.due?`<span style="font-size:0.75rem;color:var(--gray);border-radius:5px;padding:0.15rem 0.5rem">📅 ${fmtDateStr(t.due)}</span>`:''}
+      ${t.tempo_previsto?`<span style="font-size:0.75rem;color:#E65100;background:#fff3e0;border-radius:5px;padding:0.15rem 0.5rem;font-weight:600">⏱ ${t.tempo_previsto}</span>`:''}
+    </div>
+    ${t.demanda?`<div style="background:#f9f9fb;border-radius:8px;padding:0.6rem 0.8rem;font-size:0.82rem;color:#444;line-height:1.5;margin-bottom:0.4rem;white-space:pre-wrap">${t.demanda}</div>`:''}
+    ${subsHtml}
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;justify-content:flex-end">
+      <button class="btn btn-sm" style="background:#eaf4ff;color:#1A6FA8;border:1px solid #1A6FA8;font-weight:700" onclick="closeModal('modal-task-detail');openSubtaskModal('${t.id}')">＋ Subtarefa</button>
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('modal-task-detail');editTask('${t.id}')">✏️ Editar</button>
+      <button class="btn btn-sm" style="background:#fff0f0;color:var(--danger);border:1px solid var(--danger)" onclick="closeModal('modal-task-detail');deleteTask('${t.id}')">🗑 Excluir</button>
+    </div>`;
+  openModal('modal-task-detail');
 }
 
 async function editTask(id) {
