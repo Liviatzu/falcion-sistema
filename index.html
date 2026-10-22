@@ -524,7 +524,7 @@ tr:hover td{background:#F8FAFC}
           <button class="btn btn-ghost btn-sm" onclick="gerarRelatorioTarefas()">📄 Relatório</button>
           <button class="btn btn-primary btn-sm" onclick="openTaskModal(currentClientId)">+ Nova Tarefa</button>
         </div>
-        <div id="client-tasks-list"></div>
+        <div id="client-tasks-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.9rem"></div>
       </div>
 
       <!-- REGISTRO DE VISITAS TAB -->
@@ -664,7 +664,7 @@ tr:hover td{background:#F8FAFC}
           <option value="">Todas as empresas</option>
         </select>
       </div>
-      <div id="all-tasks-list"></div>
+      <div id="all-tasks-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.9rem"></div>
     </div>
 
     <!-- CALENDAR -->
@@ -3695,29 +3695,29 @@ function renderTaskList(list, containerId) {
         </div>`).join('')}
       </div>` : '';
 
+    const stripeColor = st==='done'?'#27AE60':st==='in_progress'?'#E67E22':st==='suspended'?'#95A5A6':'#E74C3C';
     return `
-    <div class="task-item">
-      <div class="task-item-row">
-        <div class="task-body">
-          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem">
-            ${statusSel}
-            <span class="task-title-text ${st==='done'?'done-text':''}">${t.personal?'🔒 ':''}${t.title}</span>
+    <div class="task-item" style="padding:0;overflow:hidden;border-radius:12px">
+      <div style="height:4px;background:${stripeColor}"></div>
+      <div style="padding:0.9rem 1rem 0.6rem">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;margin-bottom:0.5rem">
+          ${statusSel}
+          <div style="display:flex;gap:0.3rem;flex-shrink:0">
+            <button class="btn btn-sm" style="background:#eaf4ff;color:#1A6FA8;border:1px solid #1A6FA8;padding:0.2rem 0.55rem;font-size:0.78rem;font-weight:700" onclick="openSubtaskModal('${t.id}')" title="Adicionar subtarefa">＋</button>
+            <button class="btn btn-sm" style="background:#f0f4ff;color:var(--navy);border:1px solid var(--navy);padding:0.2rem 0.45rem;font-size:0.72rem" onclick="editTask('${t.id}')">✏️</button>
+            <button class="btn btn-sm" style="background:#fff0f0;color:var(--danger);border:1px solid var(--danger);padding:0.2rem 0.45rem;font-size:0.72rem" onclick="deleteTask('${t.id}')">🗑</button>
           </div>
-          <div class="task-meta" style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
-            ${t.client_name?`<span style="font-weight:700">🏢 ${t.client_name}</span>`:''}
-            ${assignedHtml}
-            ${t.due?`<span>📅 ${fmtDateStr(t.due)}</span>`:''}
-            ${t.tempo_previsto?`<span>⏱ ${t.tempo_previsto}</span>`:''}
-            ${t.frequencia?`<span>🔁 ${t.frequencia.charAt(0).toUpperCase()+t.frequencia.slice(1)}</span>`:''}
-          </div>
-          ${t.demanda?`<div style="color:#555;font-size:0.82rem;margin-top:0.3rem">${t.demanda}</div>`:''}
-          ${progressHtml}
         </div>
-        <div class="task-actions" style="display:flex;gap:0.3rem;flex-shrink:0">
-          <button class="btn btn-sm" style="background:#eaf4ff;color:#1A6FA8;border:1px solid #1A6FA8;padding:0.2rem 0.6rem;font-size:0.78rem;font-weight:700" onclick="openSubtaskModal('${t.id}')" title="Adicionar subtarefa">＋</button>
-          <button class="btn btn-sm" style="background:#f0f4ff;color:var(--navy);border:1px solid var(--navy);padding:0.2rem 0.5rem;font-size:0.72rem" onclick="editTask('${t.id}')">✏️</button>
-          <button class="btn btn-sm" style="background:#fdf;color:var(--danger);border:1px solid var(--danger);padding:0.2rem 0.5rem;font-size:0.72rem" onclick="deleteTask('${t.id}')">🗑</button>
+        <div style="font-weight:700;font-size:0.9rem;color:var(--navy);margin-bottom:0.4rem;line-height:1.35;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;margin-bottom:${t.demanda||progressHtml?'0.4rem':'0'}">
+          ${t.client_name?`<span style="font-size:0.72rem;background:#f0f4ff;color:var(--navy);border-radius:6px;padding:0.18rem 0.5rem;font-weight:600">🏢 ${t.client_name}</span>`:''}
+          ${assignedArr.map(a=>`<span style="font-size:0.72rem;background:#e8f0fe;color:#1A4FA8;border-radius:6px;padding:0.18rem 0.5rem;font-weight:600">👤 ${a}</span>`).join('')}
+          ${t.due?`<span style="font-size:0.72rem;color:var(--gray);background:var(--bg-light,#f9f9fb);border-radius:6px;padding:0.18rem 0.5rem">📅 ${fmtDateStr(t.due)}</span>`:''}
+          ${t.tempo_previsto?`<span style="font-size:0.72rem;color:#E65100;background:#fff3e0;border-radius:6px;padding:0.18rem 0.5rem;font-weight:600">⏱ ${t.tempo_previsto}</span>`:''}
+          ${t.frequencia?`<span style="font-size:0.72rem;color:var(--gray);background:var(--bg-light,#f9f9fb);border-radius:6px;padding:0.18rem 0.5rem">🔁 ${t.frequencia.charAt(0).toUpperCase()+t.frequencia.slice(1)}</span>`:''}
         </div>
+        ${t.demanda?`<div style="color:#666;font-size:0.8rem;margin-bottom:0.4rem;line-height:1.4">${t.demanda}</div>`:''}
+        ${progressHtml}
       </div>
       ${subsHtml}
     </div>`;
