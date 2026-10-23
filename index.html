@@ -3050,7 +3050,6 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   // Filtrar: tarefas ativas (não concluídas)
   const activeList = allList.filter(t => {
     if ((t.status||'pending') === 'done') return false;
-    if (!showAllMonths && t.due && !t.due.startsWith(curYM)) return false;
     if (t.personal && t.personal_owner !== session.name) return false;
     // Não-master vê só suas tarefas
     if (!isMasterG) {
@@ -3129,14 +3128,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     doneToggleEl.style.marginBottom = '0.5rem';
     hoursEl.insertAdjacentElement('afterend', doneToggleEl);
   }
-  const allPendingCount = allList.filter(t=>(t.status||'pending')!=='done' && t.due && !t.due.startsWith(curYM)).length;
-  let toggleHtml = '';
-  if (allPendingCount > 0 || showAllMonths) {
-    toggleHtml += `<button onclick="loadClientTasks('${clientId}',true,${!showAllMonths})" style="background:none;border:none;color:#7C3AED;font-size:0.8rem;font-weight:600;cursor:pointer;padding:0;margin-right:1rem">
-      ${showAllMonths ? '📅 Só mês atual' : `📋 Ver todas as pendentes (${allPendingCount} de outros meses)`}
-    </button>`;
-  }
-  doneToggleEl.innerHTML = toggleHtml;
+  doneToggleEl.innerHTML = '';
 
   renderTaskList(displayList, 'client-tasks-list');
 }
