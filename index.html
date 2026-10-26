@@ -3180,9 +3180,9 @@ function renderTasks(list) {
 function filterTasks() { renderTasks(allTasks); }
 
 // ---- Toggle lista/kanban ----
-const taskViewState = { client: 'kanban', all: 'kanban' };
+window.taskViewState = { client: 'kanban', all: 'kanban' };
 window.setTaskView = function(scope, mode) {
-  taskViewState[scope] = mode;
+  window.taskViewState[scope] = mode;
   const active = 'background:#1A2F4A;color:#fff;border:none';
   const idle   = 'background:var(--bg);color:var(--gray);border:1px solid var(--gray-light)';
   const kBtn = document.getElementById(`btn-view-${scope}-kanban`);
