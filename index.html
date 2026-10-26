@@ -1887,6 +1887,7 @@ async function doLogin() {
   if (pw === p.password || (master && pw === master.password)) {
     session = { id:p.id, name:p.name, email:p.email, role:p.role, ini:p.ini||p.name[0] };
     localStorage.setItem('falcion_session', JSON.stringify(session));
+    setTimeout(()=>toast(`🔍 DEBUG: ${p.name} | role: ${p.role||'(vazio)'}`),1000);
     document.getElementById('pw-modal').classList.remove('active');
     document.getElementById('login-screen').classList.remove('active');
     enterApp();
