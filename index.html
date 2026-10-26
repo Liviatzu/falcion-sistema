@@ -522,7 +522,11 @@ tr:hover td{background:#F8FAFC}
       <div class="tab-content active" id="tab-tasks-client">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
           <button class="btn btn-ghost btn-sm" onclick="gerarRelatorioTarefas()">📄 Relatório</button>
-          <button class="btn btn-primary btn-sm" onclick="openTaskModal(currentClientId)">+ Nova Tarefa</button>
+          <div style="display:flex;gap:0.4rem;align-items:center">
+            <button id="btn-view-client-kanban" onclick="setTaskView('client','kanban')" title="Blocos/Kanban" style="background:#1A2F4A;color:#fff;border:none;border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer">⊞</button>
+            <button id="btn-view-client-list" onclick="setTaskView('client','list')" title="Lista" style="background:var(--bg);color:var(--gray);border:1px solid var(--gray-light);border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer">☰</button>
+            <button class="btn btn-primary btn-sm" onclick="openTaskModal(currentClientId)">+ Nova Tarefa</button>
+          </div>
         </div>
         <div id="client-tasks-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.9rem;align-items:start"></div>
       </div>
@@ -663,6 +667,10 @@ tr:hover td{background:#F8FAFC}
         <select id="task-filter-empresa" onchange="filterTasks()" style="padding:0.6rem 1rem;border-radius:8px;border:1.5px solid var(--gray-light);font-family:inherit;font-size:0.88rem">
           <option value="">Todas as empresas</option>
         </select>
+        <div style="display:flex;gap:0.3rem;margin-left:auto">
+          <button id="btn-view-all-kanban" onclick="setTaskView('all','kanban')" title="Blocos/Kanban" style="background:#1A2F4A;color:#fff;border:none;border-radius:7px;padding:0.35rem 0.65rem;font-size:0.85rem;cursor:pointer">⊞</button>
+          <button id="btn-view-all-list" onclick="setTaskView('all','list')" title="Lista" style="background:var(--bg);color:var(--gray);border:1px solid var(--gray-light);border-radius:7px;padding:0.35rem 0.65rem;font-size:0.85rem;cursor:pointer">☰</button>
+        </div>
       </div>
       <div id="all-tasks-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.9rem;align-items:start"></div>
     </div>
@@ -3011,8 +3019,17 @@ async function deleteVisit(id) {
 // ============================================================
 async function loadAllTasks() {
   const snap = await db.collection('tasks').orderBy('created_at','desc').get();
+  const isMasterG2 = session && (session.role === 'master' || session.name === 'Marília Falcioni');
   allTasks = snap.docs.map(d=>({id:d.id,...d.data()}))
-    .filter(t => !t.personal || t.personal_owner === session.name);
+    .filter(t => {
+      if (t.personal && t.personal_owner !== session.name) return false;
+      // Não-master vê só as suas na aba lateral
+      if (!isMasterG2) {
+        const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+        if (arr.length && !arr.includes(session.name)) return false;
+      }
+      return true;
+    });
   // popular filtro de consultor
   const fcSel = document.getElementById('task-filter-consultor');
   const isMasterOrGestor = session && (session.role === 'master' || session.name === 'Marília Falcioni');
@@ -3161,6 +3178,20 @@ function renderTasks(list) {
 }
 
 function filterTasks() { renderTasks(allTasks); }
+
+// ---- Toggle lista/kanban ----
+const taskViewState = { client: 'kanban', all: 'kanban' };
+window.setTaskView = function(scope, mode) {
+  taskViewState[scope] = mode;
+  const active = 'background:#1A2F4A;color:#fff;border:none';
+  const idle   = 'background:var(--bg);color:var(--gray);border:1px solid var(--gray-light)';
+  const kBtn = document.getElementById(`btn-view-${scope}-kanban`);
+  const lBtn = document.getElementById(`btn-view-${scope}-list`);
+  if (kBtn) kBtn.style.cssText = (mode==='kanban' ? active : idle) + ';border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer';
+  if (lBtn) lBtn.style.cssText = (mode==='list'   ? active : idle) + ';border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer';
+  if (scope === 'client') renderTaskList(window._lastClientTaskList || [], 'client-tasks-list');
+  else renderTasks(allTasks);
+};
 
 // ============================================================
 // METAS DOS CLIENTES
@@ -3660,13 +3691,55 @@ window.deleteSubtask = async function(taskId, subId) {
 
 function renderTaskList(list, containerId) {
   const container = document.getElementById(containerId);
+  // salva para re-render ao trocar view
+  if (containerId === 'client-tasks-list') window._lastClientTaskList = list;
+
   if (!list.length) {
     container.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>Nenhuma tarefa encontrada</p></div>';
     container.style.display = 'block';
     return;
   }
 
-  // Kanban: 3 colunas
+  const scope = containerId === 'client-tasks-list' ? 'client' : 'all';
+  const viewMode = (window.taskViewState || {})[scope] || 'kanban';
+
+  // ---- MODO LISTA ----
+  if (viewMode === 'list') {
+    container.style.display = 'block';
+    container.style.gridTemplateColumns = '';
+    const stLabel = {pending:'🔴 Pendente',in_progress:'🟡 Em Andamento',done:'✅ Concluída',suspended:'⏸️ Suspensa'};
+    const stColor = {pending:'#E74C3C',in_progress:'#E67E22',done:'#27AE60',suspended:'#95A5A6'};
+    container.innerHTML = list.map(t => {
+      const st = t.status||'pending';
+      const assignedArr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+      const subs = Array.isArray(t.subtasks) ? t.subtasks : [];
+      const subsDone = subs.filter(s=>s.done).length;
+      const stOpts = [{v:'pending',l:'🔴 Pendente'},{v:'in_progress',l:'🟡 Em Andamento'},{v:'done',l:'✅ Concluída'},{v:'suspended',l:'⏸️ Suspensa'}];
+      const statusSel = `<select class="task-status-sel tss-${st}" onchange="changeTaskStatus('${t.id}',this)" onclick="event.stopPropagation()">
+        ${stOpts.map(o=>`<option value="${o.v}"${o.v===st?' selected':''}>${o.l}</option>`).join('')}
+      </select>`;
+      return `<div style="background:var(--white);border-radius:8px;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.75rem;border-left:3px solid ${stColor[st]||'#ccc'};cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.05)" onclick="openTaskDetail('${t.id}')">
+        <div onclick="event.stopPropagation()">${statusSel}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:0.85rem;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.2rem">
+            ${t.client_name?`<span style="font-size:0.67rem;color:var(--gray)">🏢 ${t.client_name}</span>`:''}
+            ${assignedArr.map(a=>`<span style="font-size:0.67rem;color:#1A4FA8">👤 ${a}</span>`).join('')}
+            ${t.due?`<span style="font-size:0.67rem;color:var(--gray)">📅 ${fmtDateStr(t.due)}</span>`:''}
+            ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100">⏱ ${t.tempo_previsto}</span>`:''}
+            ${subs.length?`<span style="font-size:0.67rem;color:#2980B9">📋 ${subsDone}/${subs.length}</span>`:''}
+          </div>
+        </div>
+        <div style="display:flex;gap:0.25rem;flex-shrink:0">
+          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--navy)" onclick="event.stopPropagation();editTask('${t.id}')">✏️</button>
+          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--danger)" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // ---- MODO KANBAN ----
   const cols = { pending: [], in_progress: [], done: [], suspended: [] };
   list.forEach(t => cols[t.status||'pending'].push(t));
 
@@ -3858,8 +3931,7 @@ async function changeTaskStatus(id, el) {
   // Atualizar painel de horas se estivermos na aba tarefas do cliente
   if (currentClientId && typeof loadClientTasks === 'function') loadClientTasks(currentClientId);
 
-  // Sync Asana
-  if (task && task.client_id) syncTaskAsana(id, task.client_id, task, 'update').catch(e => toast('Asana: ' + e.message, 'error'));
+  // Asana: status não sincronizado (tarefas individuais desvinculadas do Asana)
 }
 
 async function openTaskModal(preClientId) {
@@ -3919,8 +3991,7 @@ async function saveTask() {
     closeModal('modal-task');
     if (currentClientId && clientId===currentClientId) loadClientTasks(currentClientId);
     else loadAllTasks();
-    // Sync Asana em background (não bloqueia UX)
-    if (clientId && savedDocId) syncTaskAsana(savedDocId, clientId, payload, editId ? 'update' : 'create').catch(e => toast('Asana: ' + e.message, 'error'));
+    // Asana: não sincroniza tarefas individuais (só projeto do cliente é vinculado)
   } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
