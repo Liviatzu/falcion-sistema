@@ -557,6 +557,13 @@ tr:hover td{background:#F8FAFC}
               <input type="date" id="f-date-fim" onchange="filterVisits()" style="padding:0.35rem 0.6rem;border-radius:6px;border:1.5px solid var(--gray-light);font-size:0.82rem">
             </div>
             <button onclick="clearVisitFilters()" style="background:none;border:none;color:var(--gray);cursor:pointer;font-size:0.82rem;margin-top:1rem">Limpar</button>
+            <div>
+              <div style="font-size:0.68rem;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.25rem">Ordenar</div>
+              <select id="f-visit-order" onchange="filterVisits()" style="padding:0.35rem 0.6rem;border-radius:6px;border:1.5px solid var(--gray-light);font-size:0.82rem">
+                <option value="desc">Mais recente</option>
+                <option value="asc">Mais antiga</option>
+              </select>
+            </div>
           </div>
         </div>
         <!-- Lista -->
@@ -2577,11 +2584,17 @@ function renderVisitList(list) {
   }).join('');
 }
 
+function sortVisits(list) {
+  const order = (document.getElementById('f-visit-order')||{}).value || 'desc';
+  return [...list].sort((a,b) => order==='asc'
+    ? (a.date||'').localeCompare(b.date||'')
+    : (b.date||'').localeCompare(a.date||''));
+}
+
 async function loadVisits(clientId) {
   const snap = await db.collection('visits').where('client_id','==',clientId).get();
-  allVisitsCache = snap.docs.map(d=>({id:d.id,...d.data()}))
-    .sort((a,b)=>b.date.localeCompare(a.date));
-  renderVisitList(allVisitsCache);
+  allVisitsCache = snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderVisitList(sortVisits(allVisitsCache));
 }
 
 function filterVisits() {
@@ -2592,14 +2605,14 @@ function filterVisits() {
   if (cons) list = list.filter(v=>v.created_by===cons);
   if (ini)  list = list.filter(v=>v.date>=ini);
   if (fim)  list = list.filter(v=>v.date<=fim);
-  renderVisitList(list);
+  renderVisitList(sortVisits(list));
 }
 
 function clearVisitFilters() {
   document.getElementById('f-consultor').value='';
   document.getElementById('f-date-ini').value='';
   document.getElementById('f-date-fim').value='';
-  renderVisitList(allVisitsCache);
+  renderVisitList(sortVisits(allVisitsCache));
 }
 
 let visitTasksCache = [];
