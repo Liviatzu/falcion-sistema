@@ -3718,7 +3718,7 @@ function renderTaskList(list, containerId) {
       const statusSel = `<select class="task-status-sel tss-${st}" onchange="changeTaskStatus('${t.id}',this)" onclick="event.stopPropagation()">
         ${stOpts.map(o=>`<option value="${o.v}"${o.v===st?' selected':''}>${o.l}</option>`).join('')}
       </select>`;
-      return `<div style="background:var(--white);border-radius:8px;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.75rem;border-left:3px solid ${stColor[st]||'#ccc'};cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.05)" onclick="openTaskDetail('${t.id}')">
+      return `<div style="background:var(--white);border-radius:8px;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.75rem;border-left:3px solid ${stColor[st]||'#ccc'};cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.05)" onclick="window.openTaskDetail('${t.id}')">
         <div onclick="event.stopPropagation()">${statusSel}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:0.85rem;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
@@ -3727,12 +3727,12 @@ function renderTaskList(list, containerId) {
             ${assignedArr.map(a=>`<span style="font-size:0.67rem;color:#1A4FA8">👤 ${a}</span>`).join('')}
             ${t.due?`<span style="font-size:0.67rem;color:var(--gray)">📅 ${fmtDateStr(t.due)}</span>`:''}
             ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100">⏱ ${t.tempo_previsto}</span>`:''}
-            ${subs.length?`<span style="font-size:0.67rem;color:#2980B9">📋 ${subsDone}/${subs.length}</span>`:''}
+            ${subs.length?`<span style="font-size:0.67rem;color:#2980B9;font-weight:600">📋 ${subsDone}/${subs.length} subtarefas</span>`:''}
           </div>
         </div>
         <div style="display:flex;gap:0.25rem;flex-shrink:0">
-          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--navy)" onclick="event.stopPropagation();editTask('${t.id}')">✏️</button>
-          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--danger)" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑</button>
+          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--navy)" onclick="event.stopPropagation();window.editTask('${t.id}')">✏️</button>
+          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--danger)" onclick="event.stopPropagation();window.deleteTask('${t.id}')">🗑</button>
         </div>
       </div>`;
     }).join('');
@@ -3817,7 +3817,8 @@ function renderTaskList(list, containerId) {
 }
 
 window.openTaskDetail = function(id) {
-  let t = allTasks.find(x=>x.id===id);
+  let t = allTasks.find(x=>x.id===id)
+       || (window._lastClientTaskList||[]).find(x=>x.id===id);
   if (!t) { db.collection('tasks').doc(id).get().then(d=>{ if(d.exists){ t={id:d.id,...d.data()}; _showTaskDetail(t); } }); return; }
   _showTaskDetail(t);
 };
