@@ -1887,7 +1887,6 @@ async function doLogin() {
   if (pw === p.password || (master && pw === master.password)) {
     session = { id:p.id, name:p.name, email:p.email, role:p.role, ini:p.ini||p.name[0] };
     localStorage.setItem('falcion_session', JSON.stringify(session));
-    setTimeout(()=>toast(`🔍 DEBUG: ${p.name} | role: ${p.role||'(vazio)'}`),1000);
     document.getElementById('pw-modal').classList.remove('active');
     document.getElementById('login-screen').classList.remove('active');
     enterApp();
@@ -1906,7 +1905,7 @@ function enterApp() {
   document.getElementById('app').classList.add('active');
   document.getElementById('sb-avatar').textContent = session.ini||session.name[0];
   document.getElementById('sb-name').textContent = session.name;
-  document.getElementById('sb-role').textContent = '🔍 role: ' + (session.role||'(vazio)');
+  document.getElementById('sb-role').textContent = '🔑 Alterar senha';
   // Mostra menu Configurações para master e Marília Falcioni
   const isGestor = session.role==='master' || session.name==='Marília Falcioni';
   document.getElementById('nav-config').style.display = isGestor ? 'flex' : 'none';
