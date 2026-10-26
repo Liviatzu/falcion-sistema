@@ -1906,6 +1906,7 @@ function enterApp() {
   document.getElementById('app').classList.add('active');
   document.getElementById('sb-avatar').textContent = session.ini||session.name[0];
   document.getElementById('sb-name').textContent = session.name;
+  document.getElementById('sb-role').textContent = '🔍 role: ' + (session.role||'(vazio)');
   // Mostra menu Configurações para master e Marília Falcioni
   const isGestor = session.role==='master' || session.name==='Marília Falcioni';
   document.getElementById('nav-config').style.display = isGestor ? 'flex' : 'none';
