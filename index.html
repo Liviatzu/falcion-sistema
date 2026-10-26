@@ -3718,22 +3718,33 @@ function renderTaskList(list, containerId) {
       const statusSel = `<select class="task-status-sel tss-${st}" onchange="changeTaskStatus('${t.id}',this)" onclick="event.stopPropagation()">
         ${stOpts.map(o=>`<option value="${o.v}"${o.v===st?' selected':''}>${o.l}</option>`).join('')}
       </select>`;
-      return `<div style="background:var(--white);border-radius:8px;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.6rem;padding:0.45rem 0.75rem;border-left:3px solid ${stColor[st]||'#ccc'};cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.05)" onclick="window.openTaskDetail('${t.id}')">
-        <div onclick="event.stopPropagation()">${statusSel}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:0.85rem;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.2rem">
-            ${t.client_name?`<span style="font-size:0.67rem;color:var(--gray)">🏢 ${t.client_name}</span>`:''}
-            ${assignedArr.map(a=>`<span style="font-size:0.67rem;color:#1A4FA8">👤 ${a}</span>`).join('')}
-            ${t.due?`<span style="font-size:0.67rem;color:var(--gray)">📅 ${fmtDateStr(t.due)}</span>`:''}
-            ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100">⏱ ${t.tempo_previsto}</span>`:''}
-            ${subs.length?`<span style="font-size:0.67rem;color:#2980B9;font-weight:600">📋 ${subsDone}/${subs.length} subtarefas</span>`:''}
+      const subsHtml = subs.length ? `
+        <div style="margin-top:0.4rem;padding-left:0.2rem">
+          ${subs.map(s=>`<div style="display:flex;align-items:center;gap:0.35rem;padding:0.2rem 0;border-top:1px solid var(--gray-light)">
+            <input type="checkbox" ${s.done?'checked':''} onchange="window.toggleSubtask('${t.id}','${s.id}')" onclick="event.stopPropagation()" style="accent-color:var(--gold);flex-shrink:0">
+            <span style="font-size:0.78rem;${s.done?'text-decoration:line-through;color:var(--gray)':''}">${s.title}</span>
+            ${s.due?`<span style="font-size:0.68rem;color:var(--gray);margin-left:auto">📅 ${fmtDateStr(s.due)}</span>`:''}
+            ${s.assigned_to?`<span style="font-size:0.68rem;color:#1A4FA8">👤 ${s.assigned_to}</span>`:''}
+          </div>`).join('')}
+        </div>` : '';
+      return `<div style="background:var(--white);border-radius:8px;margin-bottom:0.4rem;padding:0.45rem 0.75rem;border-left:3px solid ${stColor[st]||'#ccc'};box-shadow:0 1px 3px rgba(0,0,0,.05)">
+        <div style="display:flex;align-items:center;gap:0.6rem">
+          <div onclick="event.stopPropagation()">${statusSel}</div>
+          <div style="flex:1;min-width:0;cursor:pointer" onclick="window.openTaskDetail('${t.id}')">
+            <div style="font-weight:600;font-size:0.85rem;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.15rem">
+              ${t.client_name?`<span style="font-size:0.67rem;color:var(--gray)">🏢 ${t.client_name}</span>`:''}
+              ${assignedArr.map(a=>`<span style="font-size:0.67rem;color:#1A4FA8">👤 ${a}</span>`).join('')}
+              ${t.due?`<span style="font-size:0.67rem;color:var(--gray)">📅 ${fmtDateStr(t.due)}</span>`:''}
+              ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100">⏱ ${t.tempo_previsto}</span>`:''}
+            </div>
+          </div>
+          <div style="display:flex;gap:0.25rem;flex-shrink:0">
+            <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--navy)" onclick="window.editTask('${t.id}')">✏️</button>
+            <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--danger)" onclick="window.deleteTask('${t.id}')">🗑</button>
           </div>
         </div>
-        <div style="display:flex;gap:0.25rem;flex-shrink:0">
-          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--navy)" onclick="event.stopPropagation();window.editTask('${t.id}')">✏️</button>
-          <button style="background:none;border:none;cursor:pointer;font-size:0.75rem;color:var(--danger)" onclick="event.stopPropagation();window.deleteTask('${t.id}')">🗑</button>
-        </div>
+        ${subsHtml}
       </div>`;
     }).join('');
     return;
