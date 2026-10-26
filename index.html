@@ -2263,6 +2263,9 @@ function renderClients(list) {
         <button style="background:transparent;border:none;color:#ccc;cursor:pointer;font-size:0.95rem;padding:0;flex-shrink:0" onclick="event.stopPropagation();deleteClient('${c.id}','${c.name}')">🗑</button>
       </div>
 
+      <!-- Alerta do cliente -->
+      ${c.alert ? `<div style="margin:0.3rem 0 0.4rem;padding:0.3rem 0.5rem;background:#fff8e1;border-left:3px solid #f9a825;border-radius:5px;font-size:0.7rem;color:#6d4c00;cursor:pointer;white-space:pre-wrap;word-break:break-word;display:flex;gap:0.35rem;align-items:flex-start" onclick="event.stopPropagation();openAlertEdit('${c.id}','${(c.alert||'').replace(/'/g,"&#39;")}')" title="Clique para editar">⚠️ <span>${c.alert}</span></div>` : `<div style="margin:0.3rem 0 0.4rem;cursor:pointer;font-size:0.68rem;color:#bbb;display:flex;align-items:center;gap:0.25rem" onclick="event.stopPropagation();openAlertEdit('${c.id}','')">＋ <span>Adicionar alerta</span></div>`}
+
       <!-- Divisor -->
       <div style="height:1px;background:var(--gray-light);margin-bottom:0.65rem"></div>
 
@@ -2330,6 +2333,16 @@ window.saveClientHours = async function(id, field, val) {
   const idx = allClients.findIndex(c=>c.id===id);
   if(idx>=0) { allClients[idx][field]=val; renderClients(allClients); }
   toast('Salvo!');
+};
+
+window.openAlertEdit = function(clientId, current) {
+  const txt = prompt('Alerta para este cliente (deixe vazio para remover):', current || '');
+  if (txt === null) return;
+  db.collection('clients').doc(clientId).update({ alert: txt.trim() }).then(() => {
+    const idx = allClients.findIndex(c => c.id === clientId);
+    if (idx >= 0) { allClients[idx].alert = txt.trim(); renderClients(allClients); }
+    toast(txt.trim() ? 'Alerta salvo!' : 'Alerta removido!');
+  });
 };
 
 function filterClients() {
