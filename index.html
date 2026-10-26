@@ -562,7 +562,11 @@ tr:hover td{background:#F8FAFC}
         <!-- Lista -->
         <div class="visits-list-header">
           <span>REGISTRO DE VISITAS &nbsp; Total: <strong id="visits-total" style="color:var(--navy)">—</strong></span>
-          <button class="btn btn-primary btn-sm" onclick="openVisitModal()">+ Registrar</button>
+          <div style="display:flex;gap:0.4rem;align-items:center">
+            <button id="btn-view-visits-cards" onclick="window.setVisitView('cards')" title="Cards" style="background:#1A2F4A;color:#fff;border:none;border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer">⊞</button>
+            <button id="btn-view-visits-list" onclick="window.setVisitView('list')" title="Lista" style="background:var(--bg);color:var(--gray);border:1px solid var(--gray-light);border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer">☰</button>
+            <button class="btn btn-primary btn-sm" onclick="openVisitModal()">+ Registrar</button>
+          </div>
         </div>
         <div id="visits-list"></div>
       </div>
@@ -2494,7 +2498,20 @@ async function openClientDetail(id) {
 // ============================================================
 let allVisitsCache = [];
 
+window.visitViewMode = 'cards';
+window.setVisitView = function(mode) {
+  window.visitViewMode = mode;
+  const active = 'background:#1A2F4A;color:#fff;border:none;border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer';
+  const idle   = 'background:var(--bg);color:var(--gray);border:1px solid var(--gray-light);border-radius:7px;padding:0.25rem 0.55rem;font-size:0.8rem;cursor:pointer';
+  const cBtn = document.getElementById('btn-view-visits-cards');
+  const lBtn = document.getElementById('btn-view-visits-list');
+  if (cBtn) cBtn.style.cssText = mode==='cards' ? active : idle;
+  if (lBtn) lBtn.style.cssText = mode==='list'  ? active : idle;
+  renderVisitList(window._lastVisitList || []);
+};
+
 function renderVisitList(list) {
+  window._lastVisitList = list;
   const container = document.getElementById('visits-list');
   const total = list.reduce((s,v)=>s+parseHHMM(v.hours),0);
   document.getElementById('visits-total').textContent = fmtHHMM(total)+'h';
@@ -2503,6 +2520,33 @@ function renderVisitList(list) {
     container.style.display = 'block';
     return;
   }
+
+  // ---- MODO LISTA ----
+  if (window.visitViewMode === 'list') {
+    container.style.display = 'block';
+    container.style.gridTemplateColumns = '';
+    container.innerHTML = list.map(v => {
+      const desc = (v.description||'').trim();
+      const descId = 'vdesc-l-'+v.id;
+      return `<div style="background:var(--white);border-radius:8px;margin-bottom:0.4rem;padding:0.45rem 0.75rem;border-left:3px solid #2980B9;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+        <div style="display:flex;align-items:center;gap:0.6rem">
+          <span style="font-weight:700;font-size:0.82rem;color:var(--navy);white-space:nowrap">${fmtDateStr(v.date)}</span>
+          <span style="font-size:0.75rem;color:var(--gray)">👤 ${v.created_by||'—'}</span>
+          ${v.task_title?`<span style="font-size:0.7rem;background:#f0f4ff;color:var(--navy);border-radius:5px;padding:0.1rem 0.4rem">📌 ${v.task_title}</span>`:''}
+          <span style="font-weight:700;color:#2980B9;font-size:0.82rem;margin-left:auto;white-space:nowrap">${fmtHHMM(parseHHMM(v.hours))}</span>
+          <button style="background:none;border:none;cursor:pointer;font-size:0.72rem;color:var(--navy)" onclick="openEditVisit('${v.id}')">✏️</button>
+          <button style="background:none;border:none;cursor:pointer;font-size:0.72rem;color:var(--danger)" onclick="deleteVisit('${v.id}')">🗑</button>
+        </div>
+        ${desc?`<div>
+          <div id="${descId}" style="display:none;font-size:0.78rem;color:#555;line-height:1.45;margin-top:0.3rem;white-space:pre-wrap">${desc}</div>
+          <button onclick="(function(el,btn){el.style.display=el.style.display==='none'?'block':'none';btn.textContent=el.style.display==='block'?'▲ Ocultar':'📝 Ver descrição'})(document.getElementById('${descId}'),this)" style="background:none;border:none;color:#2980B9;font-size:0.7rem;cursor:pointer;padding:0;font-weight:600">📝 Ver descrição</button>
+        </div>`:''}
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // ---- MODO CARDS ----
   container.style.display = 'grid';
   container.style.gridTemplateColumns = 'repeat(auto-fill,minmax(280px,1fr))';
   container.style.gap = '0.7rem';
