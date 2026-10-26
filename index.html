@@ -3083,7 +3083,7 @@ async function loadAllTasks() {
       // Não-master vê só as suas na aba lateral
       if (!isMasterG2) {
         const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
-        if (arr.length && !arr.includes(session.name)) return false;
+        if (!arr.includes(session.name)) return false;
       }
       return true;
     });
@@ -3128,7 +3128,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     // Não-master vê só suas tarefas
     if (!isMasterG) {
       const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
-      if (arr.length && !arr.includes(session.name)) return false;
+      if (!arr.includes(session.name)) return false;
     }
     return true;
   }).sort((a,b)=>{
