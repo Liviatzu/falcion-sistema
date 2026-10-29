@@ -753,7 +753,7 @@ tr:hover td{background:#F8FAFC}
       <!-- Tabela geral -->
       <div style="font-size:0.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.6rem">📋 Todos os clientes</div>
       <table class="report-table" id="report-table">
-        <thead><tr><th>Cliente</th><th>Inicial</th><th>Usado</th><th>Saldo</th></tr></thead>
+        <thead><tr><th>Cliente</th><th>A Executar</th><th>Executado</th><th>Saldo</th></tr></thead>
         <tbody id="report-tbody"></tbody>
       </table>
     </div>
@@ -4987,8 +4987,10 @@ async function loadReport() {
   // Tabela principal
   const rows = clients.map(c => {
     const used    = visits.filter(v=>v.client_id===c.id).reduce((s,v)=>s+parseHHMM(v.hours),0);
-    // Usa initial_hours do historico_mensal quando for mês fechado; senão usa o atual
-    const initial = parseHHMM(historicoInitial[c.id] || c.initial_hours||'0');
+    // Hrs a executar = quota mensal + resíduo (mês anterior)
+    const residuo  = parseHHMM(historicoInitial[c.id] || c.initial_hours||'0');
+    const quota    = parseHHMM(c.monthly_quota_hours||'0');
+    const initial  = quota + residuo;
     const balanceRaw = initial - used;
     const balance = Math.round(balanceRaw * 60) / 60; // arredonda ao minuto para evitar float
     totalUsed += used; totalInitial += initial;
@@ -5026,7 +5028,7 @@ async function loadReport() {
 
   // KPI Cards
   document.getElementById('report-kpis').innerHTML = [
-    { lbl:'Horas Iniciais',    val: fmtHHMM(totalInitial),           color:'var(--navy)' },
+    { lbl:'Hrs a Executar',    val: fmtHHMM(totalInitial),           color:'var(--navy)' },
     { lbl:'Horas Executadas',  val: fmtHHMM(totalUsed),              color:'#1565C0' },
     { lbl:'Saldo Geral',       val: fmtHHMM(totalInitial-totalUsed), color: totalInitial-totalUsed < 0 ? 'var(--danger)':'var(--success)' },
     { lbl:'Excederam Horas',   val: excederam.length + ' cliente(s)', color:'var(--danger)' },
