@@ -2304,7 +2304,9 @@ function renderClients(list) {
 
       <!-- Rodapé -->
       <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--gray-light);padding-top:0.45rem">
-        ${c.drive_url ? `<a href="${c.drive_url}" target="_blank" onclick="event.stopPropagation()" style="font-size:0.72rem;color:#1A73E8;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:0.3rem">📁 Drive</a>` : `<span></span>`}
+        ${c.drive_url
+          ? `<span style="display:flex;align-items:center;gap:0.3rem"><a href="${c.drive_url}" target="_blank" onclick="event.stopPropagation()" style="font-size:0.72rem;color:#1A73E8;font-weight:700;text-decoration:none">📁 Drive</a><span onclick="event.stopPropagation();window.editDriveUrl('${c.id}','${c.drive_url}')" style="font-size:0.65rem;color:#aaa;cursor:pointer" title="Editar link">✏️</span></span>`
+          : `<span onclick="event.stopPropagation();window.editDriveUrl('${c.id}','')" style="font-size:0.72rem;color:#aaa;cursor:pointer">📁 Vincular Drive</span>`}
         <span onclick="event.stopPropagation();openClientDetail('${c.id}')" style="font-size:0.72rem;color:var(--gold);font-weight:600;cursor:pointer;letter-spacing:0.3px">Ver cliente →</span>
       </div>
     </div>`;
@@ -2333,6 +2335,16 @@ window.saveClientHours = async function(id, field, val) {
   const idx = allClients.findIndex(c=>c.id===id);
   if(idx>=0) { allClients[idx][field]=val; renderClients(allClients); }
   toast('Salvo!');
+};
+
+window.editDriveUrl = function(clientId, current) {
+  const url = prompt('Link da pasta do Google Drive:', current || '');
+  if (url === null) return;
+  db.collection('clients').doc(clientId).update({ drive_url: url.trim() }).then(() => {
+    const idx = allClients.findIndex(c => c.id === clientId);
+    if (idx >= 0) { allClients[idx].drive_url = url.trim(); renderClients(allClients); }
+    toast(url.trim() ? 'Drive vinculado!' : 'Link removido!');
+  });
 };
 
 window.openAlertEdit = function(clientId, current) {
