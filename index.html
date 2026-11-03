@@ -5641,8 +5641,9 @@ window.loadConsultoresOcupacao = async function() {
     const iso = `${ym}-${String(d).padStart(2,'0')}`;
     if (!feriadosDates.includes(iso)) diasUteis++;
   }
-  const horasBrutas = diasUteis * 8; // 8h/dia
-  const horasDisponiveisMes = Math.round(horasBrutas * 0.8); // -20% overhead
+  const horasBrutas = diasUteis * 8; // 8h/dia  (100%)
+  const horasDesconto20 = Math.round(horasBrutas * 0.2); // 20% overhead
+  const horasDisponiveisMes = horasBrutas - horasDesconto20; // líquido 80%
 
   // Renderiza painel de feriados
   const feriadosEl = document.getElementById('feriados-lista');
@@ -5693,12 +5694,14 @@ window.loadConsultoresOcupacao = async function() {
 
   // Monta dados por consultor
   const data = profiles.filter(p=>p.name).map(p => {
-    const disponivel  = horasDisponiveisMes; // calculado pelos dias úteis do mês
+    const bruto       = horasBrutas;
+    const desconto    = horasDesconto20;
+    const disponivel  = horasDisponiveisMes;
     const programado  = horasProg[p.name] || 0;
     const executado   = horasExec[p.name] || 0;
     const ocup = Math.round(programado/disponivel*100);
     const livre = Math.max(0, disponivel - programado);
-    return { name: p.name, disponivel, programado, executado, ocup, livre, id: p.id };
+    return { name: p.name, bruto, desconto, disponivel, programado, executado, ocup, livre, id: p.id };
   }).filter(d => d.programado > 0 || d.executado > 0)
     .sort((a,b)=>a.name.localeCompare(b.name));
 
@@ -5718,7 +5721,6 @@ window.loadConsultoresOcupacao = async function() {
     { lbl:'Hrs Executadas',   val: fmtHHMM(totalExec),  color:'#E65100' },
     { lbl:'% Ocupação Geral', val: ocupGeral+'%', color: ocupGeral>90?'#E74C3C':ocupGeral>70?'#F39C12':'#27AE60' },
     { lbl:'Hrs Livres',       val: fmtHHMM(totalLivre), color:'#27AE60' },
-    { lbl:'Capacidade novos clientes', val: novosClientes, color:'#7C3AED' },
   ].map(k=>`
     <div style="background:#fff;border:1.5px solid var(--gray-light);border-radius:12px;padding:1rem;text-align:center">
       <div style="font-size:0.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem">${k.lbl}</div>
@@ -5730,7 +5732,7 @@ window.loadConsultoresOcupacao = async function() {
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
       <thead><tr style="background:var(--navy);color:#fff;font-size:0.78rem">
         <th style="padding:0.6rem 0.8rem;text-align:left">Consultor</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis (${diasUteis}d úteis × 8h × 80%)</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Horas (100% → -20% → Líquido)</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Programadas</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">% Ocupação</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Hrs Livres</th>
@@ -5741,7 +5743,12 @@ window.loadConsultoresOcupacao = async function() {
         const bar = d.ocup!==null ? `<div style="background:#eee;border-radius:4px;height:5px;margin-top:0.25rem;overflow:hidden"><div style="width:${Math.min(d.ocup,100)}%;background:${barColor};height:100%;border-radius:4px"></div></div>` : '';
         return `<tr style="border-bottom:1px solid var(--gray-light);font-size:0.83rem">
           <td style="padding:0.6rem 0.8rem;font-weight:700;color:var(--navy)">${d.name}</td>
-          <td style="padding:0.6rem 0.8rem;text-align:center;font-weight:700;color:var(--navy)">${fmtHHMM(d.disponivel)}</td>
+          <td style="padding:0.6rem 0.8rem;text-align:center">
+            <span style="font-size:0.75rem;color:#888">${fmtHHMM(d.bruto)}</span>
+            <span style="font-size:0.75rem;color:#e53935;margin:0 0.2rem">− ${fmtHHMM(d.desconto)}</span>
+            <span style="font-size:0.75rem;color:#888">=</span>
+            <span style="font-weight:800;color:var(--navy);font-size:0.95rem"> ${fmtHHMM(d.disponivel)}</span>
+          </td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#1565C0;font-weight:700">${fmtHHMM(d.programado)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center">
             <div style="font-size:0.7rem;color:var(--gray);margin-bottom:0.1rem">${fmtHHMM(d.programado)} ÷ ${fmtHHMM(d.disponivel)}</div>
@@ -5753,15 +5760,7 @@ window.loadConsultoresOcupacao = async function() {
       }).join('')}</tbody>
     </table>`;
 
-  // Painel capacidade
-  document.getElementById('consultores-capacidade').innerHTML = `
-    <div style="font-weight:700;font-size:0.9rem;color:var(--navy);margin-bottom:0.5rem">🆕 Capacidade para novos clientes</div>
-    <div style="font-size:0.83rem;color:#444;line-height:1.7">
-      Clientes ativos: <strong>${clientesAtivos}</strong> &nbsp;|&nbsp;
-      Média de hrs programadas/cliente: <strong>${mediaHrCliente?fmtHHMM(mediaHrCliente):'—'}</strong> &nbsp;|&nbsp;
-      Horas livres da equipe: <strong>${fmtHHMM(totalLivre)}</strong><br>
-      <span style="font-size:1rem;font-weight:800;color:#7C3AED">Estimativa: ${novosClientes} novo(s) cliente(s) podem entrar sem sobrecarregar a equipe.</span>
-    </div>`;
+  document.getElementById('consultores-capacidade').innerHTML = '';
 };
 
 window.adicionarFeriado = async function() {
