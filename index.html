@@ -5615,6 +5615,13 @@ window.loadConsultoresOcupacao = async function() {
   const lastDay = new Date(year, month, 0).getDate();
   const monthStart = `${ym}-01`;
   const monthEnd   = `${ym}-${String(lastDay).padStart(2,'0')}`;
+  // Dias úteis (seg-sex) do mês
+  let diasUteis = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const dow = new Date(year, month-1, d).getDay();
+    if (dow >= 1 && dow <= 5) diasUteis++;
+  }
+  const horasDisponiveisMes = diasUteis * 8; // 8h/dia
 
   // Busca perfis, tarefas ativas e visitas do mês
   const [profSnap, taskSnap, vSnap] = await Promise.all([
@@ -5647,13 +5654,13 @@ window.loadConsultoresOcupacao = async function() {
 
   // Monta dados por consultor
   const data = profiles.filter(p=>p.name).map(p => {
-    const disponivel  = parseHHMM(p.horas_mes||'0');
+    const disponivel  = horasDisponiveisMes; // calculado pelos dias úteis do mês
     const programado  = horasProg[p.name] || 0;
     const executado   = horasExec[p.name] || 0;
-    const ocup = disponivel > 0 ? Math.round(programado/disponivel*100) : null;
-    const livre = disponivel > 0 ? Math.max(0, disponivel - programado) : null;
-    return { name: p.name, disponivel, programado, executado, ocup, livre, id: p.id, horas_mes: p.horas_mes||'' };
-  }).filter(d => d.programado > 0 || d.executado > 0 || d.disponivel > 0)
+    const ocup = Math.round(programado/disponivel*100);
+    const livre = Math.max(0, disponivel - programado);
+    return { name: p.name, disponivel, programado, executado, ocup, livre, id: p.id };
+  }).filter(d => d.programado > 0 || d.executado > 0)
     .sort((a,b)=>a.name.localeCompare(b.name));
 
   // KPIs gerais
@@ -5684,7 +5691,7 @@ window.loadConsultoresOcupacao = async function() {
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
       <thead><tr style="background:var(--navy);color:#fff;font-size:0.78rem">
         <th style="padding:0.6rem 0.8rem;text-align:left">Consultor</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis (clique p/ editar)</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis (${diasUteis} dias úteis)</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Programadas</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">% Ocupação</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Hrs Livres</th>
@@ -5695,12 +5702,7 @@ window.loadConsultoresOcupacao = async function() {
         const bar = d.ocup!==null ? `<div style="background:#eee;border-radius:4px;height:5px;margin-top:0.25rem;overflow:hidden"><div style="width:${Math.min(d.ocup,100)}%;background:${barColor};height:100%;border-radius:4px"></div></div>` : '';
         return `<tr style="border-bottom:1px solid var(--gray-light);font-size:0.83rem">
           <td style="padding:0.6rem 0.8rem;font-weight:700;color:var(--navy)">${d.name}</td>
-          <td style="padding:0.6rem 0.8rem;text-align:center">
-            <input type="text" value="${d.horas_mes}" placeholder="160:00" title="Horas disponíveis/mês (HH:MM)"
-              style="width:70px;text-align:center;padding:0.2rem 0.3rem;border:1px solid #a8c4f0;border-radius:5px;font-size:0.85rem;font-weight:700;color:var(--navy)"
-              onfocus="this.dataset.original=this.value"
-              onblur="salvarHorasMes('${d.id}',this.value,this)">
-          </td>
+          <td style="padding:0.6rem 0.8rem;text-align:center;font-weight:700;color:var(--navy)">${fmtHHMM(d.disponivel)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#1565C0;font-weight:700">${fmtHHMM(d.programado)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center">
             <span style="font-weight:800;color:${barColor}">${d.ocup!==null?d.ocup+'%':'—'}</span>${bar}
