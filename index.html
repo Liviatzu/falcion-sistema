@@ -864,6 +864,16 @@ tr:hover td{background:#F8FAFC}
         <button class="btn btn-sm" onclick="loadConsultoresOcupacao()" style="background:var(--navy);color:#fff;border:none">Atualizar</button>
       </div>
       <div id="consultores-kpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem"></div>
+      <!-- Feriados -->
+      <div id="consultores-feriados" style="background:#fff8e1;border:1.5px solid #f9a825;border-radius:12px;padding:1rem;margin-bottom:1.2rem">
+        <div style="font-weight:700;font-size:0.85rem;color:#e65100;margin-bottom:0.6rem">🗓️ Feriados do mês</div>
+        <div style="font-size:0.78rem;color:#666;margin-bottom:0.6rem">Cada feriado desconta 8h das horas disponíveis de todos os consultores.</div>
+        <div id="feriados-lista" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.6rem"></div>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+          <input type="date" id="novo-feriado-date" style="padding:0.3rem 0.6rem;border:1.5px solid var(--gray-light);border-radius:8px;font-size:0.82rem">
+          <button class="btn btn-sm" onclick="adicionarFeriado()" style="background:#f9a825;color:#333;border:none;font-weight:700">+ Adicionar feriado</button>
+        </div>
+      </div>
       <div style="font-size:0.78rem;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.6rem">📋 Detalhamento por consultor</div>
       <div id="consultores-tabela"></div>
       <div style="margin-top:1.5rem;background:#f0f4ff;border-radius:12px;padding:1rem" id="consultores-capacidade"></div>
@@ -5615,13 +5625,41 @@ window.loadConsultoresOcupacao = async function() {
   const lastDay = new Date(year, month, 0).getDate();
   const monthStart = `${ym}-01`;
   const monthEnd   = `${ym}-${String(lastDay).padStart(2,'0')}`;
-  // Dias úteis (seg-sex) do mês
+
+  // Busca feriados do mês
+  let feriadosDates = [];
+  try {
+    const fSnap = await db.collection('feriados').doc(ym).get();
+    if (fSnap.exists) feriadosDates = fSnap.data().dates || [];
+  } catch(e) {}
+
+  // Dias úteis (seg-sex) do mês, descontando feriados
   let diasUteis = 0;
   for (let d = 1; d <= lastDay; d++) {
     const dow = new Date(year, month-1, d).getDay();
-    if (dow >= 1 && dow <= 5) diasUteis++;
+    if (dow < 1 || dow > 5) continue;
+    const iso = `${ym}-${String(d).padStart(2,'0')}`;
+    if (!feriadosDates.includes(iso)) diasUteis++;
   }
   const horasDisponiveisMes = diasUteis * 8; // 8h/dia
+
+  // Renderiza painel de feriados
+  const feriadosEl = document.getElementById('feriados-lista');
+  if (feriadosEl) {
+    feriadosEl.innerHTML = feriadosDates.length === 0
+      ? '<span style="font-size:0.78rem;color:#aaa">Nenhum feriado cadastrado.</span>'
+      : feriadosDates.sort().map(dt => {
+          const [,, dd] = dt.split('-');
+          const nome = new Date(dt+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+          return `<span style="display:inline-flex;align-items:center;gap:0.3rem;background:#fff;border:1px solid #f9a825;border-radius:20px;padding:0.2rem 0.6rem;font-size:0.78rem;color:#555">
+            ${nome}
+            <span onclick="removerFeriado('${ym}','${dt}')" style="cursor:pointer;color:#e53935;font-weight:700;margin-left:2px">✕</span>
+          </span>`;
+        }).join('');
+  }
+  // Define data padrão do input para o mês atual
+  const novoFeriadoInput = document.getElementById('novo-feriado-date');
+  if (novoFeriadoInput && !novoFeriadoInput.value) novoFeriadoInput.value = monthStart;
 
   // Busca perfis, tarefas ativas e visitas do mês
   const [profSnap, taskSnap, vSnap] = await Promise.all([
@@ -5723,6 +5761,39 @@ window.loadConsultoresOcupacao = async function() {
       Horas livres da equipe: <strong>${fmtHHMM(totalLivre)}</strong><br>
       <span style="font-size:1rem;font-weight:800;color:#7C3AED">Estimativa: ${novosClientes} novo(s) cliente(s) podem entrar sem sobrecarregar a equipe.</span>
     </div>`;
+};
+
+window.adicionarFeriado = async function() {
+  const ymInput = document.getElementById('cons-month');
+  const now = new Date();
+  const ym = ymInput.value || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const dateInput = document.getElementById('novo-feriado-date');
+  const dt = dateInput.value;
+  if (!dt) { toast('Selecione uma data','error'); return; }
+  if (!dt.startsWith(ym)) { toast('A data deve ser do mês selecionado','error'); return; }
+  try {
+    const ref = db.collection('feriados').doc(ym);
+    const snap = await ref.get();
+    const dates = snap.exists ? (snap.data().dates||[]) : [];
+    if (dates.includes(dt)) { toast('Feriado já cadastrado','error'); return; }
+    dates.push(dt);
+    await ref.set({ month: ym, dates });
+    toast('🗓️ Feriado adicionado!');
+    loadConsultoresOcupacao();
+  } catch(e) { toast('Erro: '+e.message,'error'); }
+};
+
+window.removerFeriado = async function(ym, dt) {
+  if (!confirm(`Remover feriado ${dt}?`)) return;
+  try {
+    const ref = db.collection('feriados').doc(ym);
+    const snap = await ref.get();
+    if (!snap.exists) return;
+    const dates = (snap.data().dates||[]).filter(d=>d!==dt);
+    await ref.update({ dates });
+    toast('Feriado removido');
+    loadConsultoresOcupacao();
+  } catch(e) { toast('Erro: '+e.message,'error'); }
 };
 
 window.salvarHorasMes = async function(profileId, valor, input) {
