@@ -5684,31 +5684,29 @@ window.loadConsultoresOcupacao = async function() {
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
       <thead><tr style="background:var(--navy);color:#fff;font-size:0.78rem">
         <th style="padding:0.6rem 0.8rem;text-align:left">Consultor</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis (clique p/ editar)</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Programadas</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">% Ocupação</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Hrs Livres</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Executadas (mês)</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Hrs/mês</th>
       </tr></thead>
       <tbody>${data.map(d=>{
         const barColor = !d.ocup?'#ccc':d.ocup>90?'#E74C3C':d.ocup>70?'#F39C12':'#27AE60';
         const bar = d.ocup!==null ? `<div style="background:#eee;border-radius:4px;height:5px;margin-top:0.25rem;overflow:hidden"><div style="width:${Math.min(d.ocup,100)}%;background:${barColor};height:100%;border-radius:4px"></div></div>` : '';
         return `<tr style="border-bottom:1px solid var(--gray-light);font-size:0.83rem">
           <td style="padding:0.6rem 0.8rem;font-weight:700;color:var(--navy)">${d.name}</td>
-          <td style="padding:0.6rem 0.8rem;text-align:center">${d.disponivel?fmtHHMM(d.disponivel):'—'}</td>
+          <td style="padding:0.6rem 0.8rem;text-align:center">
+            <input type="text" value="${d.horas_mes}" placeholder="160:00" title="Horas disponíveis/mês (HH:MM)"
+              style="width:70px;text-align:center;padding:0.2rem 0.3rem;border:1px solid #a8c4f0;border-radius:5px;font-size:0.85rem;font-weight:700;color:var(--navy)"
+              onfocus="this.dataset.original=this.value"
+              onblur="salvarHorasMes('${d.id}',this.value,this)">
+          </td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#1565C0;font-weight:700">${fmtHHMM(d.programado)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center">
             <span style="font-weight:800;color:${barColor}">${d.ocup!==null?d.ocup+'%':'—'}</span>${bar}
           </td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#27AE60;font-weight:700">${d.livre!==null?fmtHHMM(d.livre):'—'}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#E65100;font-weight:700">${fmtHHMM(d.executado)}</td>
-          <td style="padding:0.6rem 0.8rem;text-align:center">
-            <input type="text" value="${d.horas_mes}" placeholder="160:00" title="Horas disponíveis/mês (HH:MM)"
-              style="width:70px;text-align:center;padding:0.2rem 0.3rem;border:1px solid #ddd;border-radius:5px;font-size:0.8rem"
-              onfocus="this.dataset.original=this.value"
-              onblur="salvarHorasMes('${d.id}',this.value,this)">
-          </td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
