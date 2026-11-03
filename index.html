@@ -5705,7 +5705,8 @@ window.loadConsultoresOcupacao = async function() {
           <td style="padding:0.6rem 0.8rem;text-align:center;font-weight:700;color:var(--navy)">${fmtHHMM(d.disponivel)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#1565C0;font-weight:700">${fmtHHMM(d.programado)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center">
-            <span style="font-weight:800;color:${barColor}">${d.ocup!==null?d.ocup+'%':'—'}</span>${bar}
+            <div style="font-size:0.7rem;color:var(--gray);margin-bottom:0.1rem">${fmtHHMM(d.programado)} ÷ ${fmtHHMM(d.disponivel)}</div>
+            <span style="font-weight:800;font-size:1rem;color:${barColor}">${d.ocup}%</span>${bar}
           </td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#27AE60;font-weight:700">${d.livre!==null?fmtHHMM(d.livre):'—'}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center;color:#E65100;font-weight:700">${fmtHHMM(d.executado)}</td>
