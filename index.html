@@ -5616,16 +5616,28 @@ window.loadConsultoresOcupacao = async function() {
   const monthStart = `${ym}-01`;
   const monthEnd   = `${ym}-${String(lastDay).padStart(2,'0')}`;
 
-  // Busca perfis (horas disponíveis) e visitas do mês
-  const [profSnap, vSnap] = await Promise.all([
+  // Busca perfis, tarefas ativas e visitas do mês
+  const [profSnap, taskSnap, vSnap] = await Promise.all([
     db.collection('profiles').get(),
+    db.collection('tasks').get(),
     db.collection('visits').where('date','>=',monthStart).where('date','<=',monthEnd).get()
   ]);
 
-  const profiles = profSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.name && p.role !== 'master' || p.name === 'Marília Falcioni');
+  const profiles = profSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.name);
   const visits = vSnap.docs.map(d=>d.data());
 
-  // Agrupa horas executadas por consultor
+  // Horas programadas por consultor (tarefas pendentes/em andamento)
+  const horasProg = {};
+  taskSnap.docs.forEach(d => {
+    const t = d.data();
+    if ((t.status||'pending') === 'done' || !t.tempo_previsto || t.personal) return;
+    const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+    arr.forEach(name => {
+      horasProg[name] = (horasProg[name]||0) + parseHHMM(t.tempo_previsto);
+    });
+  });
+
+  // Horas executadas (visitas lançadas no mês) por consultor
   const horasExec = {};
   visits.forEach(v => {
     const c = (v.created_by||'').trim();
@@ -5634,29 +5646,32 @@ window.loadConsultoresOcupacao = async function() {
 
   // Monta dados por consultor
   const data = profiles.filter(p=>p.name).map(p => {
-    const disponivel = parseHHMM(p.horas_mes||'0');
-    const executado  = horasExec[p.name] || 0;
-    const ocup = disponivel > 0 ? Math.round(executado/disponivel*100) : null;
-    const livre = disponivel > 0 ? Math.max(0, disponivel - executado) : null;
-    return { name: p.name, disponivel, executado, ocup, livre, id: p.id, horas_mes: p.horas_mes||'' };
-  }).sort((a,b)=>a.name.localeCompare(b.name));
+    const disponivel  = parseHHMM(p.horas_mes||'0');
+    const programado  = horasProg[p.name] || 0;
+    const executado   = horasExec[p.name] || 0;
+    const ocup = disponivel > 0 ? Math.round(programado/disponivel*100) : null;
+    const livre = disponivel > 0 ? Math.max(0, disponivel - programado) : null;
+    return { name: p.name, disponivel, programado, executado, ocup, livre, id: p.id, horas_mes: p.horas_mes||'' };
+  }).filter(d => d.programado > 0 || d.executado > 0 || d.disponivel > 0)
+    .sort((a,b)=>a.name.localeCompare(b.name));
 
-  // KPI cards
-  const totalDisp = data.reduce((s,d)=>s+d.disponivel,0);
-  const totalExec = data.reduce((s,d)=>s+d.executado,0);
-  const totalLivre = Math.max(0, totalDisp - totalExec);
-  const ocupGeral = totalDisp > 0 ? Math.round(totalExec/totalDisp*100) : 0;
-  // Estimar capacidade de novos clientes (média de horas/cliente do mês)
+  // KPIs gerais
+  const totalDisp  = data.reduce((s,d)=>s+d.disponivel,0);
+  const totalProg  = data.reduce((s,d)=>s+d.programado,0);
+  const totalExec  = data.reduce((s,d)=>s+d.executado,0);
+  const totalLivre = Math.max(0, totalDisp - totalProg);
+  const ocupGeral  = totalDisp > 0 ? Math.round(totalProg/totalDisp*100) : 0;
   const clientesAtivos = [...new Set(visits.map(v=>v.client_id).filter(Boolean))].length;
-  const mediaHrCliente = clientesAtivos > 0 ? totalExec / clientesAtivos : 0;
-  const novosClientes = mediaHrCliente > 0 ? Math.floor(totalLivre / mediaHrCliente) : '—';
+  const mediaHrCliente = clientesAtivos > 0 ? totalProg / clientesAtivos : 0;
+  const novosClientes  = mediaHrCliente > 0 ? Math.floor(totalLivre / mediaHrCliente) : '—';
 
   document.getElementById('consultores-kpis').innerHTML = [
-    { lbl:'Horas Disponíveis', val: fmtHHMM(totalDisp), color:'var(--navy)' },
-    { lbl:'Horas Executadas',  val: fmtHHMM(totalExec), color:'#1565C0' },
-    { lbl:'Horas Livres',      val: fmtHHMM(totalLivre), color:'#27AE60' },
-    { lbl:'Ocupação Geral',    val: ocupGeral+'%', color: ocupGeral>90?'#E74C3C':ocupGeral>70?'#F39C12':'#27AE60' },
-    { lbl:'Capacidade p/ novos clientes', val: novosClientes, color:'#7C3AED' },
+    { lbl:'Hrs Disponíveis',  val: fmtHHMM(totalDisp),  color:'var(--navy)' },
+    { lbl:'Hrs Programadas',  val: fmtHHMM(totalProg),  color:'#1565C0' },
+    { lbl:'Hrs Executadas',   val: fmtHHMM(totalExec),  color:'#E65100' },
+    { lbl:'% Ocupação Geral', val: ocupGeral+'%', color: ocupGeral>90?'#E74C3C':ocupGeral>70?'#F39C12':'#27AE60' },
+    { lbl:'Hrs Livres',       val: fmtHHMM(totalLivre), color:'#27AE60' },
+    { lbl:'Capacidade novos clientes', val: novosClientes, color:'#7C3AED' },
   ].map(k=>`
     <div style="background:#fff;border:1.5px solid var(--gray-light);border-radius:12px;padding:1rem;text-align:center">
       <div style="font-size:0.65rem;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem">${k.lbl}</div>
@@ -5668,26 +5683,29 @@ window.loadConsultoresOcupacao = async function() {
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
       <thead><tr style="background:var(--navy);color:#fff;font-size:0.78rem">
         <th style="padding:0.6rem 0.8rem;text-align:left">Consultor</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Hrs Disponíveis</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Hrs Executadas</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Programadas</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">% Ocupação</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Hrs Livres</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Ocupação</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Configurar</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Executadas (mês)</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Hrs/mês</th>
       </tr></thead>
       <tbody>${data.map(d=>{
         const barColor = !d.ocup?'#ccc':d.ocup>90?'#E74C3C':d.ocup>70?'#F39C12':'#27AE60';
-        const bar = d.ocup!==null ? `<div style="background:#eee;border-radius:4px;height:6px;margin-top:0.3rem;overflow:hidden"><div style="width:${Math.min(d.ocup,100)}%;background:${barColor};height:100%;border-radius:4px"></div></div>` : '';
+        const bar = d.ocup!==null ? `<div style="background:#eee;border-radius:4px;height:5px;margin-top:0.25rem;overflow:hidden"><div style="width:${Math.min(d.ocup,100)}%;background:${barColor};height:100%;border-radius:4px"></div></div>` : '';
         return `<tr style="border-bottom:1px solid var(--gray-light);font-size:0.83rem">
           <td style="padding:0.6rem 0.8rem;font-weight:700;color:var(--navy)">${d.name}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center">${d.disponivel?fmtHHMM(d.disponivel):'—'}</td>
-          <td style="padding:0.6rem 0.8rem;text-align:center;color:#1565C0;font-weight:700">${fmtHHMM(d.executado)}</td>
-          <td style="padding:0.6rem 0.8rem;text-align:center;color:#27AE60;font-weight:700">${d.livre!==null?fmtHHMM(d.livre):'—'}</td>
+          <td style="padding:0.6rem 0.8rem;text-align:center;color:#1565C0;font-weight:700">${fmtHHMM(d.programado)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center">
             <span style="font-weight:800;color:${barColor}">${d.ocup!==null?d.ocup+'%':'—'}</span>${bar}
           </td>
+          <td style="padding:0.6rem 0.8rem;text-align:center;color:#27AE60;font-weight:700">${d.livre!==null?fmtHHMM(d.livre):'—'}</td>
+          <td style="padding:0.6rem 0.8rem;text-align:center;color:#E65100;font-weight:700">${fmtHHMM(d.executado)}</td>
           <td style="padding:0.6rem 0.8rem;text-align:center">
             <input type="text" value="${d.horas_mes}" placeholder="160:00" title="Horas disponíveis/mês (HH:MM)"
               style="width:70px;text-align:center;padding:0.2rem 0.3rem;border:1px solid #ddd;border-radius:5px;font-size:0.8rem"
+              onfocus="this.dataset.original=this.value"
               onblur="salvarHorasMes('${d.id}',this.value,this)">
           </td>
         </tr>`;
@@ -5697,10 +5715,10 @@ window.loadConsultoresOcupacao = async function() {
   // Painel capacidade
   document.getElementById('consultores-capacidade').innerHTML = `
     <div style="font-weight:700;font-size:0.9rem;color:var(--navy);margin-bottom:0.5rem">🆕 Capacidade para novos clientes</div>
-    <div style="font-size:0.83rem;color:#444;line-height:1.6">
-      Clientes ativos no mês: <strong>${clientesAtivos}</strong> &nbsp;|&nbsp;
-      Média de horas/cliente: <strong>${mediaHrCliente?fmtHHMM(mediaHrCliente):'—'}</strong> &nbsp;|&nbsp;
-      Horas livres totais: <strong>${fmtHHMM(totalLivre)}</strong><br>
+    <div style="font-size:0.83rem;color:#444;line-height:1.7">
+      Clientes ativos: <strong>${clientesAtivos}</strong> &nbsp;|&nbsp;
+      Média de hrs programadas/cliente: <strong>${mediaHrCliente?fmtHHMM(mediaHrCliente):'—'}</strong> &nbsp;|&nbsp;
+      Horas livres da equipe: <strong>${fmtHHMM(totalLivre)}</strong><br>
       <span style="font-size:1rem;font-weight:800;color:#7C3AED">Estimativa: ${novosClientes} novo(s) cliente(s) podem entrar sem sobrecarregar a equipe.</span>
     </div>`;
 };
