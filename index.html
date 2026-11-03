@@ -5641,7 +5641,8 @@ window.loadConsultoresOcupacao = async function() {
     const iso = `${ym}-${String(d).padStart(2,'0')}`;
     if (!feriadosDates.includes(iso)) diasUteis++;
   }
-  const horasDisponiveisMes = diasUteis * 8; // 8h/dia
+  const horasBrutas = diasUteis * 8; // 8h/dia
+  const horasDisponiveisMes = Math.round(horasBrutas * 0.8); // -20% overhead
 
   // Renderiza painel de feriados
   const feriadosEl = document.getElementById('feriados-lista');
@@ -5729,7 +5730,7 @@ window.loadConsultoresOcupacao = async function() {
     <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)">
       <thead><tr style="background:var(--navy);color:#fff;font-size:0.78rem">
         <th style="padding:0.6rem 0.8rem;text-align:left">Consultor</th>
-        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis (${diasUteis} dias úteis)</th>
+        <th style="padding:0.6rem 0.8rem;text-align:center">Disponíveis (${diasUteis}d úteis × 8h × 80%)</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Programadas</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">% Ocupação</th>
         <th style="padding:0.6rem 0.8rem;text-align:center">Hrs Livres</th>
