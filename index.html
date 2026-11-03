@@ -3895,7 +3895,8 @@ function renderTaskList(list, containerId) {
             <button class="btn btn-sm" style="background:#eaf4ff;color:#1A6FA8;border:1px solid #1A6FA8;padding:0.1rem 0.4rem;font-size:0.75rem;font-weight:700" onclick="event.stopPropagation();openSubtaskModal('${t.id}')" title="Subtarefa">＋</button>
             <button class="btn btn-sm" style="background:#f0f4ff;color:var(--navy);border:1px solid var(--navy);padding:0.1rem 0.35rem;font-size:0.7rem" onclick="event.stopPropagation();editTask('${t.id}')">✏️</button>
             ${(t.status||'pending')==='done'
-              ? `<button class="btn btn-sm" style="background:#f3e8ff;color:#7C3AED;border:1px solid #7C3AED;padding:0.1rem 0.35rem;font-size:0.7rem" title="Suspender tarefa" onclick="event.stopPropagation();changeTaskStatus('${t.id}','suspended')">⏸️</button>`
+              ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#27AE60;border:1px solid #27AE60;padding:0.1rem 0.35rem;font-size:0.7rem;font-weight:700" title="Retomar tarefa" onclick="event.stopPropagation();changeTaskStatus('${t.id}','pending')">↩️ Retomar</button>
+                 <button class="btn btn-sm" style="background:#f3e8ff;color:#7C3AED;border:1px solid #7C3AED;padding:0.1rem 0.35rem;font-size:0.7rem" title="Suspender" onclick="event.stopPropagation();changeTaskStatus('${t.id}','suspended')">⏸️</button>`
               : `<button class="btn btn-sm" style="background:#fff0f0;color:var(--danger);border:1px solid var(--danger);padding:0.1rem 0.35rem;font-size:0.7rem" onclick="event.stopPropagation();deleteTask('${t.id}')">🗑</button>`}
           </div>
         </div>
@@ -3967,7 +3968,8 @@ function _showTaskDetail(t) {
       <button class="btn btn-sm" style="background:#eaf4ff;color:#1A6FA8;border:1px solid #1A6FA8;font-weight:700" onclick="closeModal('modal-task-detail');openSubtaskModal('${t.id}')">＋ Subtarefa</button>
       <button class="btn btn-sm btn-ghost" onclick="closeModal('modal-task-detail');editTask('${t.id}')">✏️ Editar</button>
       ${(t.status||'pending')==='done'
-        ? `<button class="btn btn-sm" style="background:#f3e8ff;color:#7C3AED;border:1px solid #7C3AED" onclick="closeModal('modal-task-detail');changeTaskStatus('${t.id}','suspended')">⏸️ Suspender</button>`
+        ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#27AE60;border:1px solid #27AE60;font-weight:700" onclick="closeModal('modal-task-detail');changeTaskStatus('${t.id}','pending')">↩️ Retomar</button>
+           <button class="btn btn-sm" style="background:#f3e8ff;color:#7C3AED;border:1px solid #7C3AED" onclick="closeModal('modal-task-detail');changeTaskStatus('${t.id}','suspended')">⏸️ Suspender</button>`
         : `<button class="btn btn-sm" style="background:#fff0f0;color:var(--danger);border:1px solid var(--danger)" onclick="closeModal('modal-task-detail');deleteTask('${t.id}')">🗑 Excluir</button>`}
     </div>`;
   openModal('modal-task-detail');
