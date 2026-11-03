@@ -5623,7 +5623,8 @@ window.loadConsultoresOcupacao = async function() {
     db.collection('visits').where('date','>=',monthStart).where('date','<=',monthEnd).get()
   ]);
 
-  const profiles = profSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.name && p.name !== 'Marília Falcioni' && p.role !== 'master');
+  const excludeNames = ['Marília Falcioni','Deborah Dantas','Déborah Dantas','Débora Dantas','Debora Dantas'];
+  const profiles = profSnap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.name && !excludeNames.includes(p.name) && p.role !== 'master');
   const visits = vSnap.docs.map(d=>d.data());
 
   // Horas programadas por consultor (tarefas pendentes/em andamento)
