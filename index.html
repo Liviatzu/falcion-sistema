@@ -2179,8 +2179,7 @@ async function loadClients() {
       const t=d.data();
       if (t.status==='done') return;
       if (!t.client_id || !t.tempo_previsto) return;
-      const taskYm = t.due ? t.due.substring(0,7) : null;
-      if (taskYm && taskYm !== ym) return;
+      if (t.personal) return; // ignora tarefas pessoais
       clientTaskHours[t.client_id]=(clientTaskHours[t.client_id]||0)+parseHHMM(t.tempo_previsto);
     });
   } catch(e){}
@@ -2269,13 +2268,13 @@ function renderClients(list) {
       <!-- Divisor -->
       <div style="height:1px;background:var(--gray-light);margin-bottom:0.65rem"></div>
 
-      <!-- Resíduo mês anterior (editável) -->
+      <!-- Resíduo mês anterior (editável com confirmação) -->
       <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.35rem">
         <span style="font-size:0.7rem;color:var(--gray);flex:1">Resíduo mês anterior</span>
-        <input type="text" value="${c.initial_hours||'0:00'}"
+        <input type="text" id="residuo-${c.id}" value="${c.initial_hours||'0:00'}"
           style="width:60px;font-size:0.78rem;padding:0.2rem 0.4rem;border:1px solid #ddd;border-radius:5px;text-align:center;font-weight:600;background:var(--bg);color:${residuo<0?'#E74C3C':'var(--navy)'}"
-          onclick="event.stopPropagation()" onfocus="event.stopPropagation()"
-          onblur="saveClientHours('${c.id}','initial_hours',this.value)" placeholder="0:00">
+          onclick="event.stopPropagation()" onfocus="event.stopPropagation();this.dataset.original=this.value"
+          onblur="event.stopPropagation();window.confirmSaveResiduo('${c.id}',this)" placeholder="0:00">
       </div>
 
       <!-- Horas a executar no mês = contratuais + resíduo (calculado, travado) -->
@@ -2298,7 +2297,7 @@ function renderClients(list) {
 
       <!-- Hrs. programadas cronograma (informativo) -->
       <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.5rem">
-        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. prog. cronograma</span>
+        <span style="font-size:0.7rem;color:var(--gray);flex:1">Hrs. tarefas pendentes</span>
         <span style="font-size:0.78rem;font-weight:700;color:${cronColor}">${fmtHHMM(cronHrs)}${cronSinal}</span>
       </div>
 
@@ -2335,6 +2334,17 @@ window.saveClientHours = async function(id, field, val) {
   const idx = allClients.findIndex(c=>c.id===id);
   if(idx>=0) { allClients[idx][field]=val; renderClients(allClients); }
   toast('Salvo!');
+};
+
+window.confirmSaveResiduo = function(clientId, input) {
+  const novo = input.value.trim();
+  const original = input.dataset.original || '';
+  if (novo === original) return; // não mudou, não faz nada
+  if (!confirm(`Alterar resíduo de "${original}" para "${novo}"?\n\nEsta ação muda o saldo do cliente.`)) {
+    input.value = original; // reverte
+    return;
+  }
+  saveClientHours(clientId, 'initial_hours', novo);
 };
 
 window.editDriveUrl = function(clientId, current) {
@@ -3142,7 +3152,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   const allList = snap.docs.map(d=>({id:d.id,...d.data()}));
 
   const client = currentClientData || {};
-  const initialHours = parseHHMM(client.initial_hours);
+  const initialHours = parseHHMM(client.monthly_quota_hours||'0') + parseHHMM(client.initial_hours||'0');
   const now = new Date();
   const curYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
@@ -3188,7 +3198,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     hoursPanel = `
     <div style="background:${indBg};border-left:4px solid ${indColor};border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0;flex-wrap:wrap">
       <div style="flex:1;min-width:160px">
-        <div style="font-size:0.65rem;font-weight:700;color:${indColor};text-transform:uppercase;letter-spacing:0.7px;margin-bottom:0.25rem">⏱ Tarefas × Horas Iniciais (mês atual)</div>
+        <div style="font-size:0.65rem;font-weight:700;color:${indColor};text-transform:uppercase;letter-spacing:0.7px;margin-bottom:0.25rem">⏱ Tarefas × Hrs a Executar (mês atual)</div>
         <div style="display:flex;align-items:baseline;gap:0.4rem;margin-bottom:0.35rem">
           <span style="font-size:1.4rem;font-weight:900;color:${indColor};line-height:1">${fmtHHMM(taskHoursSum)}</span>
           <span style="color:#555;font-size:0.9rem;font-weight:600">/ ${fmtHHMM(initialHours)}</span>
