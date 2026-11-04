@@ -3613,6 +3613,7 @@ window.editNumUnidades = async function(clientId, el) {
   await loadMetas();
 };
 
+let _metasSaveTimer = null;
 window.saveMetaValor = async function(clientId, ym, docId, field, value, inputEl) {
   const num = parseFloat(String(value).replace(',','.'));
   const val = isNaN(num) ? 0 : num;
@@ -3624,7 +3625,9 @@ window.saveMetaValor = async function(clientId, ym, docId, field, value, inputEl
     const ref = await db.collection('metas_mensais').add({ client_id: clientId, month: ym, [field]: val });
     if (cardEl) cardEl.dataset.docid = ref.id;
   }
-  await loadMetas();
+  // debounce: só re-renderiza após 800ms sem nova edição
+  clearTimeout(_metasSaveTimer);
+  _metasSaveTimer = setTimeout(() => loadMetas(), 800);
 };
 
 window.toggleMetaDestaque = async function(clientId, ym, docId) {
