@@ -3997,6 +3997,7 @@ function _showTaskDetail(t) {
         ${s.due?`<span style="font-size:0.7rem;color:var(--gray)">📅 ${fmtDateStr(s.due)}</span>`:''}
         ${s.assigned_to?`<span style="font-size:0.7rem;color:#1A4FA8">👤 ${s.assigned_to}</span>`:''}
         <button onclick="editSubtask('${t.id}','${s.id}')" style="background:none;border:none;color:#7C3AED;cursor:pointer;font-size:0.7rem">✏️</button>
+        <button onclick="window.deleteSubtask('${t.id}','${s.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.7rem">🗑</button>
       </div>`).join('')}
     </div>` : '';
 
