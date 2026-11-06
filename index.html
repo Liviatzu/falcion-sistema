@@ -3282,19 +3282,12 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
       const v = d.data();
       const hrs = parseHHMM(v.hours||'0');
       if (!hrs) return;
-      if (!v.date || !v.date.startsWith(curYM)) return; // só mês atual, sem data = ignora
-      if (session && v.created_by !== session.name) return; // só horas do consultor logado
-      // ignora visita automática de tarefa concluída (fica órfã se tarefa for reaberta)
+      if (!v.date || !v.date.startsWith(curYM)) return; // só mês atual
+      // ignora visita automática de tarefa sem subtarefa (fica órfã se tarefa for reaberta)
       if (v.auto_generated && !v.source_subtask_id) return;
-      // visita manual: vinculada via task_id
-      if (!v.auto_generated && v.task_id) {
-        window._visitHrsByTask[v.task_id] = (window._visitHrsByTask[v.task_id]||0) + hrs;
-      }
-      // visita auto de subtarefa: vinculada via source_subtask_id → task
-      if (v.source_subtask_id && subToTask[v.source_subtask_id]) {
-        const tid = subToTask[v.source_subtask_id];
-        window._visitHrsByTask[tid] = (window._visitHrsByTask[tid]||0) + hrs;
-      }
+      // vincula à tarefa pelo campo mais direto disponível
+      const tid = v.source_task_id || v.task_id || '';
+      if (tid) window._visitHrsByTask[tid] = (window._visitHrsByTask[tid]||0) + hrs;
     });
   } catch(e) {}
 
