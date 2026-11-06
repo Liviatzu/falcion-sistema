@@ -3153,16 +3153,16 @@ async function deleteVisit(id) {
 // TASKS
 // ============================================================
 async function loadAllTasks() {
-  const snap = await db.collection('tasks').orderBy('created_at','desc').get();
   const isMasterG2 = session && session.role === 'master';
+  let snap;
+  if (isMasterG2) {
+    snap = await db.collection('tasks').orderBy('created_at','desc').get();
+  } else {
+    snap = await db.collection('tasks').where('assigned_to','array-contains',session.name).get();
+  }
   allTasks = snap.docs.map(d=>({id:d.id,...d.data()}))
     .filter(t => {
       if (t.personal && t.personal_owner !== session.name) return false;
-      // Não-master vê só as suas na aba lateral
-      if (!isMasterG2) {
-        const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
-        if (!arr.includes(session.name)) return false;
-      }
       return true;
     });
   // popular filtro de consultor
