@@ -3282,7 +3282,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
       const v = d.data();
       const hrs = parseHHMM(v.hours||'0');
       if (!hrs) return;
-      if (v.date && !v.date.startsWith(curYM)) return; // só mês atual
+      if (!v.date || !v.date.startsWith(curYM)) return; // só mês atual, sem data = ignora
       if (session && v.created_by !== session.name) return; // só horas do consultor logado
       if (v.source_task_id) {
         window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + hrs;
