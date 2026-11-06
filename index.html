@@ -4113,29 +4113,29 @@ async function changeTaskStatus(id, el) {
   }
 
   if (status === 'done' && task && task.client_id && task.tempo_previsto) {
-    // Verificar se já existe visita gerada por esta tarefa
-    const vSnap = await db.collection('visits').where('source_task_id','==',id).get();
-    const date = task.due || new Date().toISOString().slice(0,10);
-    const assignedArr = Array.isArray(task.assigned_to) ? task.assigned_to : (task.assigned_to ? [task.assigned_to] : []);
-    const consultor = assignedArr[0] || session?.name || '';
-    const visitData = {
-      client_id: task.client_id,
-      date,
-      hours: task.tempo_previsto,
-      description: task.title + (task.demanda ? ' — ' + task.demanda : ''),
-      created_by: consultor,
-      source_task_id: id,
-      auto_generated: true
-    };
-    if (vSnap.empty) {
-      await db.collection('visits').add(visitData);
-      toast('✅ Tarefa concluída e visita registrada automaticamente!');
-    } else {
-      await db.collection('visits').doc(vSnap.docs[0].id).update({ hours: visitData.hours, date: visitData.date, description: visitData.description });
-      toast('✅ Visita atualizada automaticamente!');
-    }
-    // Recarregar visitas se estiver na aba do cliente
-    if (typeof loadVisits === 'function' && currentClientId === task.client_id) loadVisits(currentClientId);
+    try {
+      const vSnap = await db.collection('visits').where('source_task_id','==',id).get();
+      const date = task.due || new Date().toISOString().slice(0,10);
+      const assignedArr = Array.isArray(task.assigned_to) ? task.assigned_to : (task.assigned_to ? [task.assigned_to] : []);
+      const consultor = assignedArr[0] || session?.name || '';
+      const visitData = {
+        client_id: task.client_id,
+        date,
+        hours: task.tempo_previsto,
+        description: task.title + (task.demanda ? ' — ' + task.demanda : ''),
+        created_by: consultor,
+        source_task_id: id,
+        auto_generated: true
+      };
+      if (vSnap.empty) {
+        await db.collection('visits').add(visitData);
+        toast('✅ Tarefa concluída e visita registrada automaticamente!');
+      } else {
+        await db.collection('visits').doc(vSnap.docs[0].id).update({ hours: visitData.hours, date: visitData.date, description: visitData.description });
+        toast('✅ Visita atualizada automaticamente!');
+      }
+      if (typeof loadVisits === 'function' && currentClientId === task.client_id) loadVisits(currentClientId);
+    } catch(e) { toast('Tarefa concluída (visita não gerada: ' + e.message + ')', 'error'); }
   }
 
   // Atualizar painel de horas se estivermos na aba tarefas do cliente
