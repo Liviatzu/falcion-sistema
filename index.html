@@ -3975,10 +3975,20 @@ function renderTaskList(list, containerId) {
           ${assignedArr.map(a=>`<span style="font-size:0.67rem;background:#e8f0fe;color:#1A4FA8;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">👤 ${a}</span>`).join('')}
           ${t.due?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">📅 ${fmtDateStr(t.due)}</span>`:''}
           ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100;background:#fff3e0;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">⏱ ${t.tempo_previsto}</span>`:''}
-          ${(()=>{ const exec=(window._visitHrsByTask||{})[t.id]||0; const prev=parseHHMM(t.tempo_previsto||'0'); if(!prev||!exec) return ''; const rest=Math.max(0,prev-exec); return `<span style="font-size:0.67rem;background:#e8f5e9;color:#1A8A4A;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600" title="Executado / Restante">✅ ${fmtHHMM(exec)} | 🕐 ${fmtHHMM(rest)}</span>`; })()}
           ${t.frequencia?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">🔁 ${t.frequencia.charAt(0).toUpperCase()+t.frequencia.slice(1)}</span>`:''}
           ${subsBadge}
         </div>
+        ${(()=>{
+          const exec=(window._visitHrsByTask||{})[t.id]||0;
+          const prev=parseHHMM(t.tempo_previsto||'0');
+          if(!prev||!exec) return '';
+          const rest=Math.max(0,prev-exec);
+          return `<div style="display:flex;gap:0.4rem;margin-top:0.35rem;padding-top:0.3rem;border-top:1px dashed #eee;flex-wrap:wrap">
+            <span style="font-size:0.65rem;background:#fff3e0;color:#E65100;border-radius:4px;padding:0.1rem 0.4rem;font-weight:700">⏱ ${fmtHHMM(prev)}</span>
+            <span style="font-size:0.65rem;background:#e8f5e9;color:#1A8A4A;border-radius:4px;padding:0.1rem 0.4rem;font-weight:700">✅ ${fmtHHMM(exec)}</span>
+            <span style="font-size:0.65rem;background:#fdecea;color:#C0392B;border-radius:4px;padding:0.1rem 0.4rem;font-weight:700">⏳ ${fmtHHMM(rest)}</span>
+          </div>`;
+        })()}
       </div>
     </div>`;
     }).join('');
