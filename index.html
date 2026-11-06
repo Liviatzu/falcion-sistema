@@ -3282,6 +3282,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
       const v = d.data();
       const hrs = parseHHMM(v.hours||'0');
       if (!hrs) return;
+      console.log('[HRS]', v.date, v.hours, 'task_id='+v.task_id, 'src_task='+v.source_task_id, 'src_sub='+v.source_subtask_id, 'auto='+v.auto_generated);
       if (!v.date || !v.date.startsWith(curYM)) return; // só mês atual
       // visita de subtarefa: tem source_task_id + source_subtask_id
       if (v.source_task_id && v.source_subtask_id) {
