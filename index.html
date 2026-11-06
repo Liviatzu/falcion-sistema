@@ -3986,6 +3986,7 @@ function renderTaskList(list, containerId) {
         ${(()=>{
           const exec=(window._visitHrsByTask||{})[t.id]||0;
           const prev=parseHHMM(t.tempo_previsto||'0');
+          console.log('[CARD]', t.title, 'id='+t.id, 'exec='+exec, 'prev='+prev, 'map='+JSON.stringify(window._visitHrsByTask));
           if(!prev||!exec) return '';
           const rest=Math.max(0,prev-exec);
           return `<div style="display:flex;gap:0.4rem;margin-top:0.35rem;padding-top:0.3rem;border-top:1px dashed #eee;flex-wrap:wrap">
