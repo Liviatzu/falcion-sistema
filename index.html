@@ -3277,11 +3277,12 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     allList.forEach(t => {
       (Array.isArray(t.subtasks) ? t.subtasks : []).forEach(s => { subToTask[s.id] = t.id; });
     });
-    const vSnap = await db.collection('visits').where('client_id','==',clientId).where('date','>=',curYM+'-01').where('date','<=',curYM+'-31').get();
+    const vSnap = await db.collection('visits').where('client_id','==',clientId).get();
     vSnap.docs.forEach(d => {
       const v = d.data();
       const hrs = parseHHMM(v.hours||'0');
       if (!hrs) return;
+      if (v.date && !v.date.startsWith(curYM)) return; // só mês atual
       if (v.source_task_id) {
         window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + hrs;
       } else if (v.source_subtask_id && subToTask[v.source_subtask_id]) {
