@@ -2672,7 +2672,15 @@ function sortVisits(list) {
 async function loadVisits(clientId) {
   const snap = await db.collection('visits').where('client_id','==',clientId).get();
   allVisitsCache = snap.docs.map(d=>({id:d.id,...d.data()}));
-  renderVisitList(sortVisits(allVisitsCache));
+  const isMasterV = session && session.role === 'master';
+  if (!isMasterV) {
+    // auto-filtrar pelo consultor logado
+    const fSel = document.getElementById('f-consultor');
+    if (fSel && !fSel.value) fSel.value = session.name;
+    renderVisitList(sortVisits(allVisitsCache.filter(v => v.created_by === session.name)));
+  } else {
+    renderVisitList(sortVisits(allVisitsCache));
+  }
 }
 
 function filterVisits() {
@@ -3154,15 +3162,14 @@ async function deleteVisit(id) {
 // ============================================================
 async function loadAllTasks() {
   const isMasterG2 = session && session.role === 'master';
-  let snap;
-  if (isMasterG2) {
-    snap = await db.collection('tasks').orderBy('created_at','desc').get();
-  } else {
-    snap = await db.collection('tasks').where('assigned_to','array-contains',session.name).get();
-  }
+  const snap = await db.collection('tasks').orderBy('created_at','desc').get();
   allTasks = snap.docs.map(d=>({id:d.id,...d.data()}))
     .filter(t => {
       if (t.personal && t.personal_owner !== session.name) return false;
+      if (!isMasterG2) {
+        const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+        if (!arr.includes(session.name)) return false;
+      }
       return true;
     });
   // popular filtro de consultor
