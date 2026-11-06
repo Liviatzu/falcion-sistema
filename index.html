@@ -3269,6 +3269,18 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   }
   hoursEl.innerHTML = hoursPanel;
 
+  // Horas executadas por tarefa (via visitas com source_task_id)
+  window._visitHrsByTask = {};
+  try {
+    const vSnap = await db.collection('visits').where('client_id','==',clientId).get();
+    vSnap.docs.forEach(d => {
+      const v = d.data();
+      if (v.source_task_id && v.hours) {
+        window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + parseHHMM(v.hours);
+      }
+    });
+  } catch(e) {}
+
   // No Kanban, concluídas sempre aparecem na coluna própria
   const displayList = [...activeList, ...doneList];
 
@@ -3953,6 +3965,7 @@ function renderTaskList(list, containerId) {
           ${assignedArr.map(a=>`<span style="font-size:0.67rem;background:#e8f0fe;color:#1A4FA8;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">👤 ${a}</span>`).join('')}
           ${t.due?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">📅 ${fmtDateStr(t.due)}</span>`:''}
           ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100;background:#fff3e0;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">⏱ ${t.tempo_previsto}</span>`:''}
+          ${(()=>{ const exec=(window._visitHrsByTask||{})[t.id]||0; const prev=parseHHMM(t.tempo_previsto||'0'); if(!prev||!exec) return ''; const rest=Math.max(0,prev-exec); return `<span style="font-size:0.67rem;background:#e8f5e9;color:#1A8A4A;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600" title="Executado / Restante">✅ ${fmtHHMM(exec)} | 🕐 ${fmtHHMM(rest)}</span>`; })()}
           ${t.frequencia?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">🔁 ${t.frequencia.charAt(0).toUpperCase()+t.frequencia.slice(1)}</span>`:''}
           ${subsBadge}
         </div>
