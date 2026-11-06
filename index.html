@@ -3285,11 +3285,14 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
       (Array.isArray(t.subtasks) ? t.subtasks : []).forEach(s => { subToTask[s.id] = t.id; });
     });
     const vSnap = await db.collection('visits').where('client_id','==',clientId).get();
+    const isMasterHrs = session && session.role === 'master';
     vSnap.docs.forEach(d => {
       const v = d.data();
       const hrs = parseHHMM(v.hours||'0');
       if (!hrs) return;
       if (!v.date || !v.date.startsWith(curYM)) return; // só mês atual
+      // não-master: conta só horas do consultor logado
+      if (!isMasterHrs && v.created_by !== session.name) return;
       // visita de subtarefa: tem source_task_id + source_subtask_id
       if (v.source_task_id && v.source_subtask_id) {
         window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + hrs;
@@ -4095,8 +4098,8 @@ async function editTask(id) {
   openModal('modal-task');
 }
 async function changeTaskStatus(id, el) {
-  const status = el.value;
-  el.className = `task-status-sel tss-${status}`;
+  const status = typeof el === 'string' ? el : el.value;
+  if (typeof el !== 'string') el.className = `task-status-sel tss-${status}`;
   await db.collection('tasks').doc(id).update({ status });
 
   // Sincronizar cache local
