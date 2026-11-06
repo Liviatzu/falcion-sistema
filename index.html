@@ -3325,7 +3325,8 @@ function getAssignedChecked() {
 function renderTasks(list) {
   const q = document.getElementById('task-search').value.toLowerCase();
   const f = document.getElementById('task-filter').value;
-  const fc = document.getElementById('task-filter-consultor').value;
+  const isMasterRender = session && session.role === 'master';
+  const fc = isMasterRender ? (document.getElementById('task-filter-consultor').value) : session.name;
   const fe = (document.getElementById('task-filter-empresa')||{}).value||'';
   let filtered = list;
   if (q) filtered = filtered.filter(t=>t.title.toLowerCase().includes(q)||(t.client_name||'').toLowerCase().includes(q));
