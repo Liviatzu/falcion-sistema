@@ -3985,7 +3985,6 @@ function renderTaskList(list, containerId) {
           if(!prev||!exec) return '';
           const rest=Math.max(0,prev-exec);
           return `<div style="display:flex;gap:0.4rem;margin-top:0.35rem;padding-top:0.3rem;border-top:1px dashed #eee;flex-wrap:wrap">
-            <span style="font-size:0.65rem;background:#fff3e0;color:#E65100;border-radius:4px;padding:0.1rem 0.4rem;font-weight:700">⏱ ${fmtHHMM(prev)}</span>
             <span style="font-size:0.65rem;background:#e8f5e9;color:#1A8A4A;border-radius:4px;padding:0.1rem 0.4rem;font-weight:700">✅ ${fmtHHMM(exec)}</span>
             <span style="font-size:0.65rem;background:#fdecea;color:#C0392B;border-radius:4px;padding:0.1rem 0.4rem;font-weight:700">⏳ ${fmtHHMM(rest)}</span>
           </div>`;
