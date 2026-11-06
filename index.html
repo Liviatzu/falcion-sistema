@@ -3224,9 +3224,10 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   // Concluídas do mês atual (para exibir se solicitado)
   const doneList = allList.filter(t => {
     if ((t.status||'pending') !== 'done') return false;
+    // sem data: sempre aparece; com data: filtra por mês se não for "todos os meses"
     if (!showAllMonths && t.due && !t.due.startsWith(curYM)) return false;
     return true;
-  }).sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  }).sort((a,b)=>(b.due||'').localeCompare(a.due||'') || (a.title||'').localeCompare(b.title||''));
 
   // Horas: só tarefas ativas do mês atual
   let taskHoursSum = 0;
@@ -3316,7 +3317,12 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     doneToggleEl.style.marginBottom = '0.5rem';
     hoursEl.insertAdjacentElement('afterend', doneToggleEl);
   }
-  doneToggleEl.innerHTML = '';
+  doneToggleEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem">
+      <span style="font-size:0.75rem;color:var(--gray);font-weight:600">✅ Concluídas:</span>
+      <button onclick="loadClientTasks('${clientId}',true,false)" style="font-size:0.72rem;padding:0.15rem 0.6rem;border-radius:12px;border:1px solid ${!showAllMonths?'var(--navy)':'var(--gray-light)'};background:${!showAllMonths?'var(--navy)':'var(--white)'};color:${!showAllMonths?'#fff':'var(--gray)'};cursor:pointer;font-weight:600">Mês atual</button>
+      <button onclick="loadClientTasks('${clientId}',true,true)" style="font-size:0.72rem;padding:0.15rem 0.6rem;border-radius:12px;border:1px solid ${showAllMonths?'var(--navy)':'var(--gray-light)'};background:${showAllMonths?'var(--navy)':'var(--white)'};color:${showAllMonths?'#fff':'var(--gray)'};cursor:pointer;font-weight:600">Todos os meses</button>
+    </div>`;
 
   renderTaskList(displayList, 'client-tasks-list');
 }
