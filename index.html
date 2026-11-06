@@ -3277,7 +3277,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     allList.forEach(t => {
       (Array.isArray(t.subtasks) ? t.subtasks : []).forEach(s => { subToTask[s.id] = t.id; });
     });
-    const vSnap = await db.collection('visits').where('client_id','==',clientId).get();
+    const vSnap = await db.collection('visits').where('client_id','==',clientId).where('date','>=',curYM+'-01').where('date','<=',curYM+'-31').get();
     vSnap.docs.forEach(d => {
       const v = d.data();
       const hrs = parseHHMM(v.hours||'0');
