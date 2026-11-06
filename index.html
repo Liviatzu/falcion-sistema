@@ -3283,6 +3283,7 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
       const hrs = parseHHMM(v.hours||'0');
       if (!hrs) return;
       if (v.date && !v.date.startsWith(curYM)) return; // só mês atual
+      if (session && v.created_by !== session.name) return; // só horas do consultor logado
       if (v.source_task_id) {
         window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + hrs;
       } else if (v.source_subtask_id && subToTask[v.source_subtask_id]) {
