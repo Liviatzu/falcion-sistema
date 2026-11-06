@@ -3284,9 +3284,14 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
       if (!hrs) return;
       if (!v.date || !v.date.startsWith(curYM)) return; // só mês atual, sem data = ignora
       if (session && v.created_by !== session.name) return; // só horas do consultor logado
-      if (v.source_task_id) {
-        window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + hrs;
-      } else if (v.source_subtask_id && subToTask[v.source_subtask_id]) {
+      // ignora visita automática de tarefa concluída (fica órfã se tarefa for reaberta)
+      if (v.auto_generated && !v.source_subtask_id) return;
+      // visita manual: vinculada via task_id
+      if (!v.auto_generated && v.task_id) {
+        window._visitHrsByTask[v.task_id] = (window._visitHrsByTask[v.task_id]||0) + hrs;
+      }
+      // visita auto de subtarefa: vinculada via source_subtask_id → task
+      if (v.source_subtask_id && subToTask[v.source_subtask_id]) {
         const tid = subToTask[v.source_subtask_id];
         window._visitHrsByTask[tid] = (window._visitHrsByTask[tid]||0) + hrs;
       }
@@ -4100,9 +4105,10 @@ async function changeTaskStatus(id, el) {
   // Se voltou de 'done' para outro status, remove visita auto-gerada
   if (status !== 'done' && task) {
     try {
-      const vSnap2 = await db.collection('visits').where('source_task_id','==',id).where('auto_generated','==',true).get();
-      if (!vSnap2.empty) {
-        await Promise.all(vSnap2.docs.map(d => d.ref.delete()));
+      const vSnap2 = await db.collection('visits').where('source_task_id','==',id).get();
+      const toDelete = vSnap2.docs.filter(d => d.data().auto_generated && !d.data().source_subtask_id);
+      if (toDelete.length) {
+        await Promise.all(toDelete.map(d => d.ref.delete()));
         toast('↩️ Visita automática removida pois tarefa foi reaberta');
         if (typeof loadVisits === 'function' && currentClientId === task.client_id) loadVisits(currentClientId);
       }
