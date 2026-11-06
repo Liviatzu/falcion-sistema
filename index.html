@@ -3269,14 +3269,24 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   }
   hoursEl.innerHTML = hoursPanel;
 
-  // Horas executadas por tarefa (via visitas com source_task_id)
+  // Horas executadas por tarefa (via visitas com source_task_id ou source_subtask_id)
   window._visitHrsByTask = {};
   try {
+    // mapa: subtaskId → taskId
+    const subToTask = {};
+    allList.forEach(t => {
+      (Array.isArray(t.subtasks) ? t.subtasks : []).forEach(s => { subToTask[s.id] = t.id; });
+    });
     const vSnap = await db.collection('visits').where('client_id','==',clientId).get();
     vSnap.docs.forEach(d => {
       const v = d.data();
-      if (v.source_task_id && v.hours) {
-        window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + parseHHMM(v.hours);
+      const hrs = parseHHMM(v.hours||'0');
+      if (!hrs) return;
+      if (v.source_task_id) {
+        window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + hrs;
+      } else if (v.source_subtask_id && subToTask[v.source_subtask_id]) {
+        const tid = subToTask[v.source_subtask_id];
+        window._visitHrsByTask[tid] = (window._visitHrsByTask[tid]||0) + hrs;
       }
     });
   } catch(e) {}
