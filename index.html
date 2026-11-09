@@ -1908,7 +1908,9 @@ function renderProfileCards() {
   const grid = document.getElementById('profiles-grid');
   grid.innerHTML = allProfiles.map(p => `
     <div class="profile-card" onclick="selectProfile('${p.id}')">
-      <div class="profile-avatar">${p.ini||p.name[0]}</div>
+      ${p.photo_url
+        ? `<img src="${p.photo_url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:3px solid var(--gold);margin:0 auto 0.8rem;display:block">`
+        : `<div class="profile-avatar">${p.ini||p.name[0]}</div>`}
       <div class="profile-name">${p.name}</div>
     </div>
   `).join('');
