@@ -4938,14 +4938,17 @@ async function saveChangePw() {
   const file = fileInput && fileInput.files[0];
 
   const p = allProfiles.find(x=>x.id===session.id);
-  if (current !== p.password) {
-    document.getElementById('cpw-error').textContent = 'Senha atual incorreta.'; return;
-  }
-  if (nw && nw.length < 4) {
-    document.getElementById('cpw-error').textContent = 'Nova senha deve ter pelo menos 4 caracteres.'; return;
-  }
-  if (nw && nw !== confirm2) {
-    document.getElementById('cpw-error').textContent = 'As senhas não coincidem.'; return;
+  // validar senha só se quiser alterar senha
+  if (nw) {
+    if (current !== p.password) {
+      document.getElementById('cpw-error').textContent = 'Senha atual incorreta.'; return;
+    }
+    if (nw.length < 4) {
+      document.getElementById('cpw-error').textContent = 'Nova senha deve ter pelo menos 4 caracteres.'; return;
+    }
+    if (nw !== confirm2) {
+      document.getElementById('cpw-error').textContent = 'As senhas não coincidem.'; return;
+    }
   }
   try {
     if (file) {
