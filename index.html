@@ -3294,15 +3294,11 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
       if (!v.date || !v.date.startsWith(curYM)) return; // só mês atual
       // não-master: conta só horas do consultor logado
       if (!isMasterHrs && v.created_by !== session.name) return;
-      // visita de subtarefa: tem source_task_id + source_subtask_id
+      // só conta visitas automáticas de subtarefas (evita dupla contagem com visitas manuais)
       if (v.source_task_id && v.source_subtask_id) {
         window._visitHrsByTask[v.source_task_id] = (window._visitHrsByTask[v.source_task_id]||0) + hrs;
       }
-      // visita manual: tem task_id mas NÃO tem source_task_id (evita contar visita órfã de tarefa)
-      else if (!v.source_task_id && v.task_id) {
-        window._visitHrsByTask[v.task_id] = (window._visitHrsByTask[v.task_id]||0) + hrs;
-      }
-      // source_task_id sem source_subtask_id = visita órfã de tarefa concluída → ignorar
+      // demais visitas (manuais, órfãs) não entram no mini-card — evita duplicar
     });
   } catch(e) {}
 
