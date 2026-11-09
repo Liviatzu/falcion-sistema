@@ -3224,8 +3224,13 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   // Concluídas do mês atual (para exibir se solicitado)
   const doneList = allList.filter(t => {
     if ((t.status||'pending') !== 'done') return false;
-    // sem data: sempre aparece; com data: filtra por mês se não for "todos os meses"
     if (!showAllMonths && t.due && !t.due.startsWith(curYM)) return false;
+    if (t.personal && t.personal_owner !== session.name) return false;
+    // não-master vê só suas tarefas concluídas
+    if (!isMasterG) {
+      const arr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+      if (!arr.includes(session.name)) return false;
+    }
     return true;
   }).sort((a,b)=>(b.due||'').localeCompare(a.due||'') || (a.title||'').localeCompare(b.title||''));
 
