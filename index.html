@@ -1524,9 +1524,11 @@ tr:hover td{background:#F8FAFC}
       <div id="cpw-avatar-preview" class="profile-avatar" style="margin:0 auto">?</div>
     </div>
     <div class="form-group">
-      <label>📸 URL da Foto (link direto de imagem)</label>
-      <input type="url" id="cpw-photo" placeholder="https://..." oninput="previewProfilePhoto(this.value)">
-      <div style="font-size:0.72rem;color:var(--gray);margin-top:0.2rem">Cole um link direto de imagem (ex: foto do Google Drive com permissão pública)</div>
+      <label>📸 Foto de Perfil</label>
+      <input type="file" id="cpw-photo-file" accept="image/*" style="display:none" onchange="onPhotoFileSelected(this)">
+      <input type="hidden" id="cpw-photo">
+      <button type="button" class="btn btn-ghost" style="width:100%;margin-bottom:0.3rem" onclick="document.getElementById('cpw-photo-file').click()">📂 Escolher foto do computador</button>
+      <div id="cpw-photo-status" style="font-size:0.72rem;color:var(--gray)">Nenhuma foto selecionada</div>
     </div>
     <div class="form-group"><label>Senha Atual</label><input type="password" id="cpw-current" placeholder="Senha atual"></div>
     <div class="form-group"><label>Nova Senha</label><input type="password" id="cpw-new" placeholder="Nova senha (deixe em branco para não alterar)"></div>
@@ -4889,6 +4891,8 @@ function showChangePw() {
   document.getElementById('cpw-error').textContent='';
   const p = allProfiles.find(x=>x.id===session.id);
   document.getElementById('cpw-photo').value = (p && p.photo_url) || '';
+  document.getElementById('cpw-photo-file').value = '';
+  document.getElementById('cpw-photo-status').textContent = (p && p.photo_url) ? '✅ Foto já cadastrada' : 'Nenhuma foto selecionada';
   previewProfilePhoto((p && p.photo_url) || '');
   openModal('modal-changepw');
 }
@@ -4915,11 +4919,23 @@ function previewProfilePhoto(url) {
   }
 }
 
+function onPhotoFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('cpw-photo-status').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB) — será enviada ao salvar`;
+  // preview local
+  const reader = new FileReader();
+  reader.onload = e => previewProfilePhoto(e.target.result);
+  reader.readAsDataURL(file);
+}
+
 async function saveChangePw() {
   const current  = document.getElementById('cpw-current').value;
   const nw       = document.getElementById('cpw-new').value;
   const confirm2 = document.getElementById('cpw-confirm').value;
-  const photoUrl = document.getElementById('cpw-photo').value.trim();
+  let photoUrl = document.getElementById('cpw-photo').value.trim();
+  const fileInput = document.getElementById('cpw-photo-file');
+  const file = fileInput && fileInput.files[0];
 
   const p = allProfiles.find(x=>x.id===session.id);
   if (current !== p.password) {
@@ -4932,8 +4948,18 @@ async function saveChangePw() {
     document.getElementById('cpw-error').textContent = 'As senhas não coincidem.'; return;
   }
   try {
-    const upd = { photo_url: photoUrl };
+    if (file) {
+      document.getElementById('cpw-photo-status').textContent = '⏳ Enviando foto...';
+      const storage = firebase.storage();
+      const ref = storage.ref(`profile_photos/${session.id}`);
+      await ref.put(file);
+      photoUrl = await ref.getDownloadURL();
+      document.getElementById('cpw-photo-status').textContent = '✅ Foto enviada!';
+    }
+    const upd = {};
+    if (photoUrl) upd.photo_url = photoUrl;
     if (nw) upd.password = nw;
+    if (!Object.keys(upd).length) { toast('Nada para salvar.'); return; }
     await db.collection('profiles').doc(session.id).update(upd);
     if (nw) p.password = nw;
     p.photo_url = photoUrl;
