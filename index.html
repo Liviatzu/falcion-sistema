@@ -400,7 +400,7 @@ tr:hover td{background:#F8FAFC}
         <div class="sidebar-sub">Sistema de Projetos</div>
       </div>
     </div>    <div class="sidebar-user" onclick="showChangePw()">
-      <div class="sidebar-avatar" id="sb-avatar">?</div>
+      <div class="sidebar-avatar" id="sb-avatar" style="overflow:hidden;padding:0">?</div>
       <div>
         <div class="sidebar-username" id="sb-name">—</div>
         <div class="sidebar-role" id="sb-role">🔑 Alterar senha</div>
@@ -1516,16 +1516,25 @@ tr:hover td{background:#F8FAFC}
 <div class="modal-overlay" id="modal-changepw">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">Alterar Senha</div>
+      <div class="modal-title">Meu Perfil</div>
       <button class="modal-close" onclick="closeModal('modal-changepw')">✕</button>
     </div>
+    <div style="text-align:center;margin-bottom:1rem">
+      <img id="cpw-photo-preview" src="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--gold);display:none">
+      <div id="cpw-avatar-preview" class="profile-avatar" style="margin:0 auto">?</div>
+    </div>
+    <div class="form-group">
+      <label>📸 URL da Foto (link direto de imagem)</label>
+      <input type="url" id="cpw-photo" placeholder="https://..." oninput="previewProfilePhoto(this.value)">
+      <div style="font-size:0.72rem;color:var(--gray);margin-top:0.2rem">Cole um link direto de imagem (ex: foto do Google Drive com permissão pública)</div>
+    </div>
     <div class="form-group"><label>Senha Atual</label><input type="password" id="cpw-current" placeholder="Senha atual"></div>
-    <div class="form-group"><label>Nova Senha</label><input type="password" id="cpw-new" placeholder="Nova senha"></div>
+    <div class="form-group"><label>Nova Senha</label><input type="password" id="cpw-new" placeholder="Nova senha (deixe em branco para não alterar)"></div>
     <div class="form-group"><label>Confirmar Nova Senha</label><input type="password" id="cpw-confirm" placeholder="Repita a nova senha"></div>
     <div class="pw-error" id="cpw-error"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-changepw')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveChangePw()">Alterar</button>
+      <button class="btn btn-primary" onclick="saveChangePw()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1861,6 +1870,14 @@ async function initApp() {
       }
     });
     allProfiles = Object.values(byName);
+    // cache global de fotos por nome
+    window._photoCache = {};
+    allProfiles.forEach(p => { if (p.photo_url) window._photoCache[p.name] = p.photo_url; });
+    // atualiza foto do usuário logado (session pode já estar ativa)
+    if (session) {
+      const me = allProfiles.find(p=>p.id===session.id);
+      if (me && me.photo_url) { session.photo_url = me.photo_url; updateSidebarAvatar(); }
+    }
     renderProfileCards();
 
     // Check saved session
@@ -1931,7 +1948,7 @@ function enterApp() {
   hideLoading();
   document.getElementById('login-screen').classList.remove('active');
   document.getElementById('app').classList.add('active');
-  document.getElementById('sb-avatar').textContent = session.ini||session.name[0];
+  updateSidebarAvatar();
   document.getElementById('sb-name').textContent = session.name;
   document.getElementById('sb-role').textContent = '🔑 Alterar senha';
   // Mostra menu Configurações para master e Marília Falcioni
@@ -3918,7 +3935,7 @@ function renderTaskList(list, containerId) {
             <div style="font-weight:600;font-size:0.85rem;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
             <div style="display:flex;flex-wrap:wrap;gap:0.25rem;margin-top:0.15rem">
               ${t.client_name?`<span style="font-size:0.67rem;color:var(--gray)">🏢 ${t.client_name}</span>`:''}
-              ${assignedArr.map(a=>`<span style="font-size:0.67rem;color:#1A4FA8">👤 ${a}</span>`).join('')}
+              ${assignedArr.map(a=>consultorBadge(a)).join('')}
               ${t.due?`<span style="font-size:0.67rem;color:var(--gray)">📅 ${fmtDateStr(t.due)}</span>`:''}
               ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100">⏱ ${t.tempo_previsto}</span>`:''}
             </div>
@@ -3956,7 +3973,7 @@ function renderTaskList(list, containerId) {
     const tasks = cols[col.key];
     const cardsHtml = tasks.map(t => {
     const assignedArr = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
-    const assignedHtml = assignedArr.length ? assignedArr.map(a=>`<span style="background:#e8f0fe;color:var(--navy);border-radius:12px;padding:0.1rem 0.5rem;font-size:0.75rem;font-weight:600">👤 ${a}</span>`).join(' ') : '';
+    const assignedHtml = assignedArr.length ? assignedArr.map(a=>consultorBadge(a)).join(' ') : '';
     const st = t.status||'pending';
     const stOpts = [
       {v:'pending',l:'🔴 Pendente'},
@@ -3994,7 +4011,7 @@ function renderTaskList(list, containerId) {
         <div style="font-weight:700;font-size:0.85rem;color:var(--navy);margin-bottom:0.3rem;line-height:1.3;${st==='done'?'text-decoration:line-through;opacity:0.6':''}">${t.personal?'🔒 ':''}${t.title}</div>
         <div style="display:flex;flex-wrap:wrap;gap:0.25rem;align-items:center">
           ${t.client_name?`<span style="font-size:0.67rem;background:#f0f4ff;color:var(--navy);border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">🏢 ${t.client_name}</span>`:''}
-          ${assignedArr.map(a=>`<span style="font-size:0.67rem;background:#e8f0fe;color:#1A4FA8;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">👤 ${a}</span>`).join('')}
+          ${assignedArr.map(a=>consultorBadge(a)).join('')}
           ${t.due?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">📅 ${fmtDateStr(t.due)}</span>`:''}
           ${t.tempo_previsto?`<span style="font-size:0.67rem;color:#E65100;background:#fff3e0;border-radius:5px;padding:0.1rem 0.38rem;font-weight:600">⏱ ${t.tempo_previsto}</span>`:''}
           ${t.frequencia?`<span style="font-size:0.67rem;color:var(--gray);border-radius:5px;padding:0.1rem 0.38rem">🔁 ${t.frequencia.charAt(0).toUpperCase()+t.frequencia.slice(1)}</span>`:''}
@@ -4868,30 +4885,79 @@ function showChangePw() {
   document.getElementById('cpw-new').value='';
   document.getElementById('cpw-confirm').value='';
   document.getElementById('cpw-error').textContent='';
+  const p = allProfiles.find(x=>x.id===session.id);
+  document.getElementById('cpw-photo').value = (p && p.photo_url) || '';
+  previewProfilePhoto((p && p.photo_url) || '');
   openModal('modal-changepw');
 }
 
+function consultorBadge(name, style='') {
+  const ph = (window._photoCache||{})[name];
+  const avatarHtml = ph
+    ? `<img src="${ph}" style="width:18px;height:18px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:3px;flex-shrink:0">`
+    : `<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--gold);color:var(--navy);font-size:0.6rem;font-weight:700;flex-shrink:0;vertical-align:middle;margin-right:3px">${name[0]||'?'}</span>`;
+  return `<span style="display:inline-flex;align-items:center;background:#e8f0fe;color:#1A4FA8;border-radius:5px;padding:0.1rem 0.4rem;font-size:0.67rem;font-weight:600;${style}">${avatarHtml}${name}</span>`;
+}
+
+function previewProfilePhoto(url) {
+  const img = document.getElementById('cpw-photo-preview');
+  const av  = document.getElementById('cpw-avatar-preview');
+  if (url) {
+    img.src = url;
+    img.style.display = 'block';
+    av.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    av.style.display = 'flex';
+    av.textContent = session ? (session.ini||session.name[0]) : '?';
+  }
+}
+
 async function saveChangePw() {
-  const current = document.getElementById('cpw-current').value;
-  const nw = document.getElementById('cpw-new').value;
+  const current  = document.getElementById('cpw-current').value;
+  const nw       = document.getElementById('cpw-new').value;
   const confirm2 = document.getElementById('cpw-confirm').value;
+  const photoUrl = document.getElementById('cpw-photo').value.trim();
 
   const p = allProfiles.find(x=>x.id===session.id);
   if (current !== p.password) {
     document.getElementById('cpw-error').textContent = 'Senha atual incorreta.'; return;
   }
-  if (!nw || nw.length < 4) {
+  if (nw && nw.length < 4) {
     document.getElementById('cpw-error').textContent = 'Nova senha deve ter pelo menos 4 caracteres.'; return;
   }
-  if (nw !== confirm2) {
+  if (nw && nw !== confirm2) {
     document.getElementById('cpw-error').textContent = 'As senhas não coincidem.'; return;
   }
   try {
-    await db.collection('profiles').doc(session.id).update({ password: nw });
-    p.password = nw;
-    toast('Senha alterada com sucesso!');
+    const upd = { photo_url: photoUrl };
+    if (nw) upd.password = nw;
+    await db.collection('profiles').doc(session.id).update(upd);
+    if (nw) p.password = nw;
+    p.photo_url = photoUrl;
+    session.photo_url = photoUrl;
+    localStorage.setItem('falcion_session', JSON.stringify(session));
+    window._photoCache = window._photoCache || {};
+    window._photoCache[session.name] = photoUrl;
+    updateSidebarAvatar();
+    toast('Perfil salvo!');
     closeModal('modal-changepw');
   } catch(e) { toast('Erro: '+e.message,'error'); }
+}
+
+function updateSidebarAvatar() {
+  const el = document.getElementById('sb-avatar');
+  if (!el) return;
+  const url = session && session.photo_url;
+  if (url) {
+    el.textContent = '';
+    el.style.backgroundImage = `url('${url}')`;
+    el.style.backgroundSize = 'cover';
+    el.style.backgroundPosition = 'center';
+  } else {
+    el.textContent = session ? (session.ini||session.name[0]) : '?';
+    el.style.backgroundImage = '';
+  }
 }
 
 // ============================================================
