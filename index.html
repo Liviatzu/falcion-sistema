@@ -2331,7 +2331,7 @@ function renderClients(list) {
             <span style="font-size:0.68rem;color:var(--gray)">h/mês</span>
           </div>
         </div>
-        <button style="background:transparent;border:none;color:#ccc;cursor:pointer;font-size:0.95rem;padding:0;flex-shrink:0" title="Arquivar cliente" onclick="event.stopPropagation();archiveClient('${c.id}','${c.name}')">📦</button>
+        ${session && session.role==='master' ? `<button style="background:transparent;border:none;color:#ccc;cursor:pointer;font-size:0.95rem;padding:0;flex-shrink:0" title="Arquivar cliente" onclick="event.stopPropagation();archiveClient('${c.id}','${c.name}')">📦</button>` : ''}
       </div>
 
       <!-- Alerta do cliente -->
