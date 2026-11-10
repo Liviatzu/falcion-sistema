@@ -2262,11 +2262,28 @@ function clientColor(name) {
 
 function renderClients(list) {
   const grid = document.getElementById('clients-grid');
-  if (!list.length) {
-    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="icon">🏢</div><p>Nenhum cliente cadastrado</p></div>';
+  const showArchived = window._showArchivedClients;
+  const archived = list.filter(c => c.status === 'archived');
+  const active   = list.filter(c => c.status !== 'archived');
+  const display  = showArchived ? archived : active;
+
+  // botão de toggle arquivados (acima do grid, fora do loop)
+  let toggleEl = document.getElementById('clients-archive-toggle');
+  if (!toggleEl) {
+    toggleEl = document.createElement('div');
+    toggleEl.id = 'clients-archive-toggle';
+    toggleEl.style.cssText = 'margin-bottom:0.6rem;display:flex;align-items:center;gap:0.6rem';
+    grid.parentElement.insertBefore(toggleEl, grid);
+  }
+  toggleEl.innerHTML = archived.length
+    ? `<button onclick="window._showArchivedClients=!window._showArchivedClients;renderClients(allClients)" style="font-size:0.75rem;padding:0.2rem 0.7rem;border-radius:12px;border:1px solid var(--gray-light);background:${showArchived?'var(--navy)':'var(--white)'};color:${showArchived?'#fff':'var(--gray)'};cursor:pointer">📦 ${showArchived?'Ver ativos':'Ver arquivados ('+archived.length+')'}</button>`
+    : '';
+
+  if (!display.length) {
+    grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><div class="icon">🏢</div><p>${showArchived?'Nenhum cliente arquivado':'Nenhum cliente cadastrado'}</p></div>`;
     return;
   }
-  grid.innerHTML = list.map(c => {
+  grid.innerHTML = display.map(c => {
     const inicial = parseHHMM(c.initial_hours)||0;
     const usado   = clientMonthUsed[c.id]||0;
     const saldo   = Math.round((inicial - usado)*60)/60;
@@ -2311,7 +2328,7 @@ function renderClients(list) {
             <span style="font-size:0.68rem;color:var(--gray)">h/mês</span>
           </div>
         </div>
-        <button style="background:transparent;border:none;color:#ccc;cursor:pointer;font-size:0.95rem;padding:0;flex-shrink:0" onclick="event.stopPropagation();deleteClient('${c.id}','${c.name}')">🗑</button>
+        <button style="background:transparent;border:none;color:#ccc;cursor:pointer;font-size:0.95rem;padding:0;flex-shrink:0" title="Arquivar cliente" onclick="event.stopPropagation();archiveClient('${c.id}','${c.name}')">📦</button>
       </div>
 
       <!-- Alerta do cliente -->
@@ -2358,7 +2375,12 @@ function renderClients(list) {
         ${c.drive_url
           ? `<span style="display:flex;align-items:center;gap:0.3rem"><a href="${c.drive_url}" target="_blank" onclick="event.stopPropagation()" style="font-size:0.72rem;color:#1A73E8;font-weight:700;text-decoration:none">📁 Drive</a><span onclick="event.stopPropagation();window.editDriveUrl('${c.id}','${c.drive_url}')" style="font-size:0.65rem;color:#aaa;cursor:pointer" title="Editar link">✏️</span></span>`
           : `<span onclick="event.stopPropagation();window.editDriveUrl('${c.id}','')" style="font-size:0.72rem;color:#aaa;cursor:pointer">📁 Vincular Drive</span>`}
-        <span onclick="event.stopPropagation();openClientDetail('${c.id}')" style="font-size:0.72rem;color:var(--gold);font-weight:600;cursor:pointer;letter-spacing:0.3px">Ver cliente →</span>
+        ${c.status==='archived'
+          ? `<span style="display:flex;gap:0.4rem">
+               <span onclick="event.stopPropagation();restoreClient('${c.id}','${c.name.replace(/'/g,"\\'")}');" style="font-size:0.72rem;color:#27AE60;font-weight:700;cursor:pointer">↩️ Restaurar</span>
+               <span onclick="event.stopPropagation();deleteClient('${c.id}','${c.name.replace(/'/g,"\\'")}');" style="font-size:0.72rem;color:#E74C3C;font-weight:700;cursor:pointer">🗑 Excluir</span>
+             </span>`
+          : `<span onclick="event.stopPropagation();openClientDetail('${c.id}')" style="font-size:0.72rem;color:var(--gold);font-weight:600;cursor:pointer;letter-spacing:0.3px">Ver cliente →</span>`}
       </div>
     </div>`;
   }).join('');
@@ -2484,8 +2506,21 @@ async function saveClient() {
   } catch(e) { toast('Erro: '+e.message,'error'); }
 }
 
+async function archiveClient(id, name) {
+  if (!confirm(`Arquivar "${name}"?\nO cliente ficará oculto mas pode ser restaurado a qualquer momento.`)) return;
+  await db.collection('clients').doc(id).update({ status: 'archived', archived_at: firebase.firestore.FieldValue.serverTimestamp() });
+  toast('📦 Cliente arquivado');
+  loadClients();
+}
+
+async function restoreClient(id, name) {
+  await db.collection('clients').doc(id).update({ status: 'active', archived_at: firebase.firestore.FieldValue.deleteField() });
+  toast('✅ Cliente restaurado');
+  loadClients();
+}
+
 async function deleteClient(id, name) {
-  if (!confirm(`Excluir cliente "${name}"? Esta ação não pode ser desfeita.`)) return;
+  if (!confirm(`Excluir permanentemente "${name}"? Esta ação não pode ser desfeita.`)) return;
   await db.collection('clients').doc(id).delete();
   toast('Cliente excluído');
   loadClients();
@@ -2493,6 +2528,7 @@ async function deleteClient(id, name) {
 
 async function openClientDetail(id) {
   currentClientId = id;
+  window._clientTasksYM = null; // reseta para o mês atual ao abrir novo cliente
 
   // Show section immediately — don't block on async queries
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
@@ -3217,6 +3253,21 @@ async function loadAllTasks() {
   renderTasks(allTasks);
 }
 
+const MESES_LABEL = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function clientTasksYM() {
+  if (!window._clientTasksYM) {
+    const n = new Date();
+    window._clientTasksYM = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+  }
+  return window._clientTasksYM;
+}
+window.navClientTasksMonth = function(delta) {
+  const [y,m] = clientTasksYM().split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  window._clientTasksYM = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  loadClientTasks(currentClientId);
+};
+
 async function loadClientTasks(clientId, showDone, showAllMonths) {
   const snap = await db.collection('tasks').where('client_id','==',clientId).get();
   const allList = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -3224,7 +3275,8 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
   const client = currentClientData || {};
   const initialHours = parseHHMM(client.monthly_quota_hours||'0') + parseHHMM(client.initial_hours||'0');
   const now = new Date();
-  const curYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const realCurYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const curYM = clientTasksYM(); // mês selecionado pelo usuário (pode ser anterior)
 
   const isMasterG = session && session.role === 'master';
   // Filtrar: tarefas ativas (não concluídas)
@@ -3301,7 +3353,17 @@ async function loadClientTasks(clientId, showDone, showAllMonths) {
     hoursEl.id = 'client-task-hours-panel';
     header.insertAdjacentElement('afterend', hoursEl);
   }
-  hoursEl.innerHTML = hoursPanel;
+  // Barra de navegação de mês
+  const [ym_y, ym_m] = curYM.split('-').map(Number);
+  const mesNome = `${MESES_LABEL[ym_m-1]} ${ym_y}`;
+  const isMesAtualSel = curYM === realCurYM;
+  const monthNavHtml = `<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;flex-wrap:wrap">
+    <button onclick="navClientTasksMonth(-1)" style="background:var(--white);border:1px solid var(--gray-light);border-radius:7px;padding:0.2rem 0.6rem;cursor:pointer;font-size:0.85rem">◀</button>
+    <span style="font-weight:700;font-size:0.9rem;color:var(--navy);min-width:100px;text-align:center">${mesNome}</span>
+    <button onclick="navClientTasksMonth(1)" ${isMesAtualSel?'disabled style="opacity:0.4;cursor:default"':''} style="background:var(--white);border:1px solid var(--gray-light);border-radius:7px;padding:0.2rem 0.6rem;cursor:pointer;font-size:0.85rem">▶</button>
+    ${!isMesAtualSel?`<button onclick="window._clientTasksYM=null;loadClientTasks('${clientId}')" style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer">Ir para hoje</button>`:''}
+  </div>`;
+  hoursEl.innerHTML = monthNavHtml + hoursPanel;
 
   // Horas executadas por tarefa (via visitas com source_task_id ou source_subtask_id)
   window._visitHrsByTask = {};
