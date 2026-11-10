@@ -1859,15 +1859,15 @@ async function initApp() {
         // mesclar: manter o que tiver mais campos preenchidos
         const kept = byName[p.name];
         const merged = { ...p, ...kept }; // kept tem prioridade
-        // mas se kept não tem calendar_url e p tem, usar o de p
+        // mas se kept não tem esses campos e p tem, usar o de p
         if (!kept.calendar_url && p.calendar_url) merged.calendar_url = p.calendar_url;
         if (!kept.email && p.email) merged.email = p.email;
+        if (!kept.photo_url && p.photo_url) merged.photo_url = p.photo_url;
         byName[p.name] = { ...merged, id: kept.id };
         // atualizar o doc keeper com os dados mesclados e deletar o duplicado
-        db.collection('profiles').doc(kept.id).update({
-          calendar_url: merged.calendar_url || '',
-          email: merged.email || ''
-        });
+        const upd = { calendar_url: merged.calendar_url || '', email: merged.email || '' };
+        if (merged.photo_url) upd.photo_url = merged.photo_url;
+        db.collection('profiles').doc(kept.id).update(upd);
         db.collection('profiles').doc(p.id).delete();
       }
     });
@@ -1886,6 +1886,9 @@ async function initApp() {
     const saved = localStorage.getItem('falcion_session');
     if (saved) {
       session = JSON.parse(saved);
+      // restaura foto do Firestore (pode não estar no localStorage)
+      const meS = allProfiles.find(p=>p.id===session.id);
+      if (meS && meS.photo_url) session.photo_url = meS.photo_url;
       enterApp();
       return;
     }
@@ -1934,7 +1937,7 @@ async function doLogin() {
   const master = allProfiles.find(x => x.role==='master');
 
   if (pw === p.password || (master && pw === master.password)) {
-    session = { id:p.id, name:p.name, email:p.email, role:p.role, ini:p.ini||p.name[0] };
+    session = { id:p.id, name:p.name, email:p.email, role:p.role, ini:p.ini||p.name[0], photo_url: p.photo_url||null };
     localStorage.setItem('falcion_session', JSON.stringify(session));
     document.getElementById('pw-modal').classList.remove('active');
     document.getElementById('login-screen').classList.remove('active');
@@ -2519,6 +2522,17 @@ async function restoreClient(id, name) {
   loadClients();
 }
 
+async function archiveClient(id, name) {
+  if (!confirm(`Arquivar "${name}"?\nO cliente ficará oculto mas pode ser restaurado a qualquer momento.`)) return;
+  await db.collection('clients').doc(id).update({ status: 'archived', archived_at: firebase.firestore.FieldValue.serverTimestamp() });
+  toast('📦 Cliente arquivado');
+  loadClients();
+}
+async function restoreClient(id, name) {
+  await db.collection('clients').doc(id).update({ status: 'active', archived_at: firebase.firestore.FieldValue.deleteField() });
+  toast('✅ Cliente restaurado');
+  loadClients();
+}
 async function deleteClient(id, name) {
   if (!confirm(`Excluir permanentemente "${name}"? Esta ação não pode ser desfeita.`)) return;
   await db.collection('clients').doc(id).delete();
